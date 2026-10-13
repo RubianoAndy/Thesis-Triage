@@ -1,6 +1,6 @@
 """
 =============================================================================
-Plataforma web de triaje manual cronometrado (Hugging Face Space · Gradio)
+Plataforma web de triaje manual cronometrado (Gradio · desplegada en Render)
 =============================================================================
 Versión web de `src/simulation/3-manual_triage.py`: presenta el MISMO lote de
 correos que procesó el modelo, A CIEGAS (sin predicción del modelo ni etiqueta
@@ -18,9 +18,10 @@ Diferencias con la versión de escritorio:
   - Reanudable desde cualquier dispositivo: al iniciar sesión se recupera el
     archivo del anotador si ya existe en el repositorio.
 
-Variables de entorno del Space:
+Variables de entorno del servicio (Render):
   HF_TOKEN      secreto · token de Hugging Face con permiso de escritura.
   DATASET_REPO  variable · p. ej. "RubianoAndy/thesis-simulation".
+  PORT          la asigna Render; en local se usa 7860.
 
 Salida: manual/<anotador>.csv  (columnas: id, orden_llegada, etiqueta_humana, segundos)
 =============================================================================
@@ -75,7 +76,7 @@ def slugify(name):
 def load_lot():
     """Descarga el lote del repositorio de datos y lo carga en orden FIFO."""
     if not HF_TOKEN:
-        raise RuntimeError("Falta el secreto HF_TOKEN en la configuración del Space.")
+        raise RuntimeError("Falta la variable de entorno HF_TOKEN en la configuración del servicio.")
     path = hf_hub_download(DATASET_REPO, "simulation.csv", repo_type="dataset", token=HF_TOKEN)
     with open(path, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
@@ -402,4 +403,5 @@ with gr.Blocks(title="Triaje manual de correos", css=CSS, js=SHORTCUTS_JS,
     restart_btn.click(restart, None, outputs)
 
 if __name__ == "__main__":
-    demo.queue().launch()
+    # Render asigna el puerto en la variable de entorno PORT; en local se usa 7860.
+    demo.queue().launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))

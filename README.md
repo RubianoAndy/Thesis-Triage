@@ -1,15 +1,3 @@
----
-title: Triaje manual de correos
-emoji: 📧
-colorFrom: blue
-colorTo: yellow
-sdk: gradio
-sdk_version: 5.29.0
-app_file: app.py
-pinned: false
-license: other
----
-
 <div align="center">
     <img src="assets/images/Logo.png" width="250" alt="Logo Universidad de La Salle">
 </div>
@@ -33,7 +21,7 @@ license: other
 | **Año** | 2026 |
 | **Estado** | En desarrollo |
 
-> Este repositorio contiene la **plataforma web de triaje manual** del proyecto de grado: un *Space* de Hugging Face (Gradio) donde los anotadores humanos clasifican el lote de simulación del objetivo 4. Es el tercer componente de la tesis, junto a **Thesis-Document** (documento en LaTeX) y **Thesis-Project** (código del pipeline y cuaderno de Colab).
+> Este repositorio contiene la **plataforma web de triaje manual** del proyecto de grado: una aplicación Gradio, desplegada como servicio web en **Render**, donde los anotadores humanos clasifican el lote de simulación del objetivo 4. Es el tercer componente de la tesis, junto a **Thesis-Document** (documento en LaTeX) y **Thesis-Project** (código del pipeline y cuaderno de Colab).
 
 ---
 
@@ -52,14 +40,16 @@ La validación en **entorno operativo simulado** (objetivo 4) mide cuánto tiemp
 ### Flujo de datos
 
 ```
-Cuaderno de Colab (Thesis-Project)            Hugging Face                         Anotadores
-──────────────────────────────────            ─────────────────────────────        ──────────
-5.1 genera simulation.csv  ──publica──▶  Dataset privado  <usuario>/thesis-simulation
-                                           ├── simulation.csv  ───lee───▶  Space Thesis-Triage ◀── clasifican
+Cuaderno de Colab (Thesis-Project)            Hugging Face (dataset privado)            Render (esta app)        Anotadores
+──────────────────────────────────            ──────────────────────────────            ─────────────────        ──────────
+5.1 genera simulation.csv  ──publica──▶  <usuario>/thesis-simulation
+                                           ├── simulation.csv  ────────lee────────▶  Thesis-Triage  ◀────────  clasifican
                                            ├── manual/<anotador>.csv  ◀──sincroniza cada minuto──┘
 5.4 recupera manual/*.csv  ◀──descarga──   └── consent/<anotador>.json
 5.5 comparativa de tiempos · 5.6 análisis de errores
 ```
+
+> ℹ️ La aplicación se aloja en Render y no en un *Space* de Hugging Face porque, desde 2026, los Spaces con Gradio requieren un plan de pago; los datasets de Hugging Face siguen siendo gratuitos y son donde viven los datos.
 
 ---
 
@@ -68,8 +58,10 @@ Cuaderno de Colab (Thesis-Project)            Hugging Face                      
 ```
 .
 ├── app.py               # Aplicación Gradio: pantallas de bienvenida, triaje y resumen; persistencia y sincronización
-├── requirements.txt     # Dependencias adicionales a Gradio (huggingface_hub)
-├── README.md            # Este archivo (su cabecera YAML configura el Space)
+├── requirements.txt     # Dependencias (gradio, huggingface_hub)
+├── render.yaml          # Blueprint de Render: servicio web gratuito, comandos y variables de entorno
+├── .python-version      # Versión de Python que usa Render (3.12.10, la misma del proyecto)
+├── README.md            # Este archivo
 ├── assets/
 │   └── images/          # Logo institucional y foto del autor
 └── data/                # ⛔ se crea en ejecución y no se versiona: carpeta local sincronizada con el dataset
@@ -102,9 +94,10 @@ Atajos de teclado: **A** (Alta), **M** (Media), **B** (Baja) y **S** (Saltar), a
 ## 🔒 Persistencia y Ética
 
 - **Archivo por anotador:** cada decisión se agrega de inmediato a `data/manual/<anotador>.csv`; el identificador se normaliza a un *slug* seguro (sin tildes, minúsculas, guiones bajos), p. ej. `Andrés Rubiano` → `andres_rubiano.csv`.
-- **Sincronización:** un `CommitScheduler` de `huggingface_hub` sube la carpeta `data/` al dataset privado **cada minuto**; al iniciar sesión se recupera el archivo del anotador si ya existe en el repositorio, lo que permite reanudar desde otro dispositivo.
+- **Sincronización:** un `CommitScheduler` de `huggingface_hub` sube la carpeta `data/` al dataset privado **cada minuto**; al iniciar sesión se recupera el archivo del anotador si ya existe en el repositorio, lo que permite reanudar desde otro dispositivo o tras un reinicio del servicio.
 - **Consentimiento informado:** no se puede comenzar sin aceptarlo; la aceptación queda en `data/consent/<anotador>.json` con fecha y hora. El texto reproduce el formato de consentimiento del apéndice de la tesis (objetivo del estudio, naturaleza sintética de los correos, datos que se registran, uso académico y seudonimizado, voluntariedad y retiro), en conformidad con la **Ley 1581 de 2012** de Protección de Datos Personales de Colombia.
 - **Cronómetro:** se mide en el servidor entre la presentación del correo y el clic de decisión; incluye la latencia de red de cada clic, despreciable frente a decisiones humanas de varios segundos.
+- **Token en el servidor:** el token de escritura de Hugging Face solo existe como variable de entorno del servicio; nunca viaja al navegador del anotador.
 
 ---
 
@@ -112,38 +105,44 @@ Atajos de teclado: **A** (Alta), **M** (Media), **B** (Baja) y **S** (Saltar), a
 
 | Requisito | Versión / Detalle |
 |-----------|-------------------|
-| **Gradio** | 5.29.0 (fijada en la cabecera YAML de este README; la instala el Space) |
+| **Python** | 3.12.10 ([`.python-version`](.python-version)) |
+| **Gradio** | 5.29.0 ([`requirements.txt`](requirements.txt)) |
 | **huggingface_hub** | ≥ 0.30 ([`requirements.txt`](requirements.txt)) |
-| **Hardware del Space** | CPU basic (gratuito); la aplicación no ejecuta modelos |
-| **Dataset** | Repositorio de datos privado con `simulation.csv` en la raíz (lo publica la sección 5.2 del cuaderno de Colab) |
+| **Alojamiento** | Render, servicio web del plan **Free** (512 MB de RAM; se duerme tras 15 min sin visitas y despierta en menos de un minuto) |
+| **Dataset** | Repositorio de datos **privado** en Hugging Face con `simulation.csv` en la raíz (lo publica la sección 5.2 del cuaderno de Colab) |
 
-### Configuración del Space
+### Variables de entorno del servicio
 
-| Ajuste | Dónde | Valor |
+| Variable | Tipo | Valor |
 |---|---|---|
-| `HF_TOKEN` | Settings → Variables and secrets → **Secret** | Token de Hugging Face con permiso *write* |
-| `DATASET_REPO` | Settings → Variables and secrets → **Variable** | `<usuario>/thesis-simulation` |
+| `HF_TOKEN` | secreto | Token de Hugging Face con permiso *write* |
+| `DATASET_REPO` | valor | `<usuario>/thesis-simulation` |
+| `PYTHON_VERSION` | valor | `3.12.10` (la fija [`render.yaml`](render.yaml)) |
 
 ---
 
-## 🚀 Publicación en Hugging Face
+## 🚀 Publicación en Render
 
-1. **Dataset:** crear el repositorio de datos `thesis-simulation` como **privado** y publicar `simulation.csv` (desde la celda 5.2 del cuaderno o subiéndolo a mano).
-2. **Token:** Settings → Access Tokens → *Create new token* de tipo **Write**.
-3. **Space:** *New → Space*, SDK **Gradio**, hardware **CPU basic**, visibilidad **pública** (los anotadores entran sin cuenta; los datos viven en el dataset privado).
-4. **Archivos:** subir `app.py`, `requirements.txt`, `README.md` y la carpeta `assets/` (o hacer `git push` al remoto del Space).
-5. **Secretos:** configurar `HF_TOKEN` y `DATASET_REPO` según la tabla anterior.
-6. **Arranque:** el Space se construye solo en uno o dos minutos. Si el registro muestra `Falta el secreto HF_TOKEN` o no encuentra `simulation.csv`, revisar los pasos 5 y 1.
-7. **Anotadores:** compartir la URL del Space; cada persona acepta el consentimiento, se identifica y clasifica. Puede cerrar y volver después con el mismo identificador.
+1. **Dataset en Hugging Face:** crear el repositorio de datos `thesis-simulation` como **privado** y publicar `simulation.csv` (desde la celda 5.2 del cuaderno o subiéndolo a mano).
+2. **Token en Hugging Face:** Settings → Access Tokens → *Create new token* de tipo **Write**.
+3. **Cuenta en Render:** entrar a [render.com](https://render.com) con la cuenta de GitHub y autorizar el acceso al repositorio `Thesis-Triage`.
+4. **Servicio:** *New → Blueprint*, elegir `Thesis-Triage`; Render lee [`render.yaml`](render.yaml) y pide el valor de `HF_TOKEN`. Confirmar con *Apply*. (Alternativa manual: *New → Web Service*, runtime Python, *Build Command* `pip install -r requirements.txt`, *Start Command* `python app.py`, plan Free, y las variables de la tabla anterior.)
+5. **Arranque:** el primer despliegue tarda dos o tres minutos. En **Logs** debe aparecer `Running on local URL: http://0.0.0.0:10000`. Si aparece `Falta el secreto HF_TOKEN` o un error 404 de `simulation.csv`, revisar los pasos 2 y 1.
+6. **Prueba:** abrir la URL `https://thesis-triage.onrender.com` (o la que asigne Render), aceptar el consentimiento, clasificar dos o tres correos con un identificador de prueba y verificar, un minuto después, que `manual/` y `consent/` aparecen en el dataset. Borrar luego esos archivos de prueba.
+7. **Anotadores:** compartir la URL; cada persona acepta el consentimiento, se identifica y clasifica. Puede cerrar y volver después con el mismo identificador. Si el servicio estaba dormido, la primera carga tarda hasta un minuto.
+
+Cada `git push` a `main` vuelve a desplegar el servicio automáticamente.
 
 ### Ejecución local (opcional)
 
 ```bash
-pip install "gradio==5.29.0" "huggingface_hub>=0.30"
+pip install -r requirements.txt
 set HF_TOKEN=hf_...                      # Windows (PowerShell: $env:HF_TOKEN="hf_...")
 set DATASET_REPO=<usuario>/thesis-simulation
 python app.py
 ```
+
+La aplicación queda en `http://localhost:7860`.
 
 ---
 
@@ -152,13 +151,14 @@ python app.py
 - [Thesis-Project — código del pipeline y cuaderno de Colab](https://github.com/RubianoAndy/Thesis-Project)
 - [Gradio — documentación](https://www.gradio.app/docs)
 - [huggingface_hub — `CommitScheduler`](https://huggingface.co/docs/huggingface_hub/guides/upload#scheduled-uploads)
-- [Hugging Face Spaces — configuración del README](https://huggingface.co/docs/hub/spaces-config-reference)
+- [Render — Blueprints (`render.yaml`)](https://render.com/docs/blueprint-spec)
+- [Render — servicios web gratuitos](https://render.com/docs/free)
 
 ---
 
 ## 🔑 Palabras Clave
 
-`Triaje Manual` · `Anotación Humana` · `Entorno Operativo Simulado` · `Gradio` · `Hugging Face Spaces` · `Clasificación de Correos Electrónicos` · `Priorización de Incidentes` · `Sector Energético` · `Consentimiento Informado`
+`Triaje Manual` · `Anotación Humana` · `Entorno Operativo Simulado` · `Gradio` · `Render` · `Hugging Face Datasets` · `Clasificación de Correos Electrónicos` · `Priorización de Incidentes` · `Sector Energético` · `Consentimiento Informado`
 
 ---
 

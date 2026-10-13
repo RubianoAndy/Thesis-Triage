@@ -1,0 +1,16 @@
+# Blueprint de Render: define el servicio web de la plataforma de triaje.
+# En render.com → New → Blueprint → seleccionar este repositorio.
+services:
+  - type: web
+    name: thesis-triage
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    envVars:
+      - key: HF_TOKEN            # token de Hugging Face con permiso de escritura (se pide al crear el servicio)
+        sync: false
+      - key: DATASET_REPO        # p. ej. RubianoAndy/thesis-simulation
+        value: RubianoAndy/thesis-simulation
+      - key: PYTHON_VERSION
+        value: 3.12.10

@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Datos locales sincronizados con el dataset de Hugging Face (nunca versionar)
+data/
+
+# Editores / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

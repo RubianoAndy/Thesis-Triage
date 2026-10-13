@@ -196,16 +196,20 @@ LOGO_URI = _logo_data_uri()
 
 
 def header_html(title, subtitle):
-    """Cabecera azul de borde a borde: logo, bloque académico, título dorado y subtítulo."""
+    """Cabecera azul de borde a borde y compacta: logo a la izquierda, bloque académico y título al centro."""
     logo = f'<img class="logo" src="{LOGO_URI}" alt="Universidad de La Salle">' if LOGO_URI else ""
     return f"""
 <div class="header">
-  {logo}
-  <div class="program">{PROGRAM.upper()}</div>
-  <div class="faculty">{FACULTY}</div>
-  <div class="author">{AUTHOR}</div>
-  <div class="title">{escape(title)}</div>
-  <div class="subtitle">{escape(subtitle)}</div>
+  <div class="header-inner">
+    <div class="header-logo">{logo}</div>
+    <div class="header-text">
+      <div class="program">{PROGRAM.upper()}</div>
+      <div class="faculty">{FACULTY} &nbsp;·&nbsp; {AUTHOR}</div>
+      <div class="title">{escape(title)}</div>
+      <div class="subtitle">{escape(subtitle)}</div>
+    </div>
+    <div class="header-logo"></div>
+  </div>
 </div>"""
 
 
@@ -249,37 +253,42 @@ footer { display:none !important; }
 .html-container.padding { padding:0 !important; }
 .gap { gap:0 !important; }
 
-/* Cabecera de borde a borde */
-.header { background:var(--panel); color:#F0F4F8; padding:26px 24px 0; text-align:center; }
-.header .logo { display:block; margin:0 auto 22px; height:84px; max-width:100%; object-fit:contain; }
-.header .program { font-weight:700; font-size:17px; color:#FFFFFF; }
-.header .faculty { font-size:12px; color:#8AABCA; margin-top:4px; }
-.header .author { font-size:13px; color:#F0F4F8; margin-top:4px; }
-.header .title { font-size:28px; font-weight:700; color:var(--accent); margin-top:18px; }
-.header .subtitle { font-size:13px; color:#8AABCA; margin-top:4px; padding-bottom:16px; border-bottom:3px solid var(--accent); }
+/* Cabecera de borde a borde, compacta (logo a un lado para ahorrar alto) */
+.header { background:var(--panel); color:#F0F4F8; padding:14px 28px 0; }
+.header-inner { display:flex; align-items:center; gap:16px; }
+.header-logo { flex:0 0 190px; }
+.header-logo .logo { height:66px; max-width:100%; object-fit:contain; display:block; }
+.header-text { flex:1; text-align:center; }
+.header .program { font-weight:700; font-size:15px; color:#FFFFFF; }
+.header .faculty { font-size:12px; color:#8AABCA; margin-top:2px; }
+.header .title { font-size:24px; font-weight:700; color:var(--accent); margin-top:6px; }
+.header .subtitle { font-size:12px; color:#8AABCA; margin-top:2px; padding-bottom:10px; }
+.header::after { content:""; display:block; height:3px; background:var(--accent); margin:0 -28px; }
+@media (max-width: 760px) { .header-logo { display:none; } }
 
 /* Columna central compacta (bienvenida y resumen) */
-.narrow { max-width:560px; margin:0 auto; padding:28px 20px 10px; }
-.wide { padding:22px 36px 10px; }
-.section-label { font-size:12px; font-weight:700; color:var(--panel); letter-spacing:.02em; margin:14px 0 6px; }
-.hint { color:var(--muted); font-size:12px; margin:8px 0 14px; }
-.ok { color:var(--baja); font-size:12px; margin:6px 0 14px; }
+.narrow { max-width:640px; margin:0 auto; padding:20px 20px 6px; }
+.welcome { max-width:1280px; margin:0 auto; padding:12px 28px 4px; }
+.wide { padding:14px 36px 6px; }
+.section-label { font-size:12px; font-weight:700; color:var(--panel); letter-spacing:.02em; margin:4px 0 6px; }
+.hint { color:var(--muted); font-size:12px; margin:6px 0 8px; }
+.ok { color:var(--baja); font-size:12px; margin:6px 0 8px; }
 
-.consent-box { max-height:220px; overflow-y:auto; border:1px solid var(--border); background:#FFFFFF; padding:2px 16px; }
+.consent-box { height:calc(100vh - 330px); max-height:calc(100vh - 330px); min-height:200px; overflow-y:auto; border:1px solid var(--border); background:#FFFFFF; padding:2px 16px; }
 .consent-box * { color:var(--ink) !important; font-size:13px; }
 .consent-box h3 { font-size:14px !important; }
 
 /* Guía de niveles */
 .guide, .guide * { color:var(--ink) !important; }
-.guide { background:var(--card); border:1px solid var(--border); padding:18px 18px 10px; margin-top:6px; }
+.guide { background:var(--card); border:1px solid var(--border); padding:14px 18px 6px; margin-top:4px; }
 .guide-title { font-weight:700; font-size:12px; margin-bottom:12px; }
-.guide-row { display:flex; gap:12px; margin:0 0 12px; font-size:12px; color:var(--muted) !important; }
+.guide-row { display:flex; gap:12px; margin:0 0 9px; font-size:12px; color:var(--muted) !important; }
 .guide-row .bar { width:6px; flex:none; }
 .guide-row .lvl { font-weight:700; font-size:14px; color:var(--ink) !important; margin-bottom:2px; }
 .bar.alta { background:var(--alta); } .bar.media { background:var(--media); } .bar.baja { background:var(--baja); }
 
 /* Triaje */
-.progress { margin:4px 0 14px; }
+.progress { margin:2px 0 10px; }
 .progress-text { font-weight:700; font-size:15px; color:var(--panel); }
 .progress-track { height:6px; background:var(--track); margin-top:8px; }
 .progress-bar { height:100%; background:var(--accent); }
@@ -288,22 +297,22 @@ footer { display:none !important; }
 .email-card .label { font-size:11px; font-weight:700; color:var(--muted) !important; }
 .email-card .subject { font-size:20px; font-weight:700; margin:6px 0 14px; }
 .email-card .body { white-space:pre-wrap; font-size:15px; line-height:1.55; border-top:1px solid var(--border);
-                    padding-top:14px; min-height:42vh; }
+                    padding-top:14px; height:calc(100vh - 460px); min-height:160px; overflow-y:auto; }
 
 /* Resumen */
 .stats { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:8px 0 18px; }
-.stat { border:1px solid var(--border); border-top:4px solid var(--accent); background:var(--card); padding:18px 20px; }
-.stat .value { font-size:30px; font-weight:700; color:var(--panel) !important; }
+.stat { border:1px solid var(--border); border-top:4px solid var(--accent); background:var(--card); padding:12px 18px; }
+.stat .value { font-size:26px; font-weight:700; color:var(--panel) !important; }
 .stat .label { font-size:11px; font-weight:700; color:var(--muted) !important; margin-top:4px; }
 .file-card { border:1px solid var(--border); background:var(--card); padding:14px 18px; }
 .file-card .label { font-size:11px; font-weight:700; color:var(--muted) !important; }
 .file-card .path { font-size:12px; color:var(--ink) !important; margin-top:6px; }
 .complete { color:var(--baja); font-weight:700; font-size:15px; margin:4px 0 14px; }
-.footer { text-align:center; color:var(--muted); font-size:12px; padding:26px 0 18px; }
+.footer { text-align:center; color:var(--muted); font-size:12px; padding:10px 0 10px; }
 
 /* Botones (planos, como en la app de escritorio) */
 #btn-start { background:var(--accent) !important; color:var(--panel) !important; font-weight:700; font-size:15px;
-             border:none !important; min-height:48px; max-width:220px; margin:4px auto 0; display:block; }
+             border:none !important; min-height:44px; max-width:240px; margin:6px auto 0; display:block; }
 #btn-alta, #btn-media, #btn-baja { min-height:52px; font-size:15px; font-weight:700; border:none !important; }
 #btn-alta  { background:var(--alta) !important; color:#FFFFFF !important; }
 #btn-media { background:var(--media) !important; color:var(--panel) !important; }
@@ -494,15 +503,19 @@ with gr.Blocks(title="Triaje manual de correos", css=CSS, js=SHORTCUTS_JS, theme
     header = gr.HTML(header_html("Triaje manual de correos",
                                  "Clasificación humana por nivel de urgencia · comparativa de tiempos"))
 
-    # Pantalla 1 · bienvenida: consentimiento, identificador y guía (columna central compacta)
-    with gr.Column(visible=True, elem_classes=["narrow"]) as welcome:
-        gr.HTML("<div class='section-label'>CONSENTIMIENTO INFORMADO</div>")
-        gr.Markdown(CONSENT_MD, elem_classes=["consent-box"])
-        consent = gr.Checkbox(label="He leído y acepto el consentimiento informado y participo de forma libre y voluntaria.")
-        gr.HTML("<div class='section-label'>IDENTIFICADOR DEL ANOTADOR</div>")
-        name = gr.Textbox(show_label=False, placeholder="Nombre o identificador (p. ej. Andrés Rubiano)")
-        name_hint = gr.HTML(preview_name(""))
-        gr.HTML(GUIDE_HTML)
+    # Pantalla 1 · bienvenida: consentimiento (izquierda), identificador y guía (derecha).
+    # Dos columnas anchas para que toda la pantalla quepa en el alto de un monitor sin desplazamiento.
+    with gr.Column(visible=True, elem_classes=["welcome"]) as welcome:
+        with gr.Row(equal_height=False):
+            with gr.Column(scale=1, min_width=360):
+                gr.HTML("<div class='section-label'>CONSENTIMIENTO INFORMADO</div>")
+                gr.Markdown(CONSENT_MD, elem_classes=["consent-box"])
+                consent = gr.Checkbox(label="He leído y acepto el consentimiento informado y participo de forma libre y voluntaria.")
+            with gr.Column(scale=1, min_width=360):
+                gr.HTML("<div class='section-label'>IDENTIFICADOR DEL ANOTADOR</div>")
+                name = gr.Textbox(show_label=False, placeholder="Nombre o identificador (p. ej. Andrés Rubiano)")
+                name_hint = gr.HTML(preview_name(""))
+                gr.HTML(GUIDE_HTML)
         start_btn = gr.Button("Comenzar triaje  →", elem_id="btn-start")
 
     # Pantalla 2 · triaje (ancho completo)

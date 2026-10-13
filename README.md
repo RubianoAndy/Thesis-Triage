@@ -79,7 +79,7 @@ Cuaderno de Colab (Thesis-Project)            Hugging Face (dataset privado)    
 | **2. Triaje** | Progreso (`Correo n de N`), tarjeta con asunto y mensaje, botones **Alta / Media / Baja**, **Saltar** y **Guardar y salir** | `_showTriage` + `_decide` |
 | **3. Resumen** | Clasificados en la sesión, progreso acumulado, tiempo total y promedio por correo, botones **Continuar** y **Otro anotador** | `_showSummary` |
 
-Atajos de teclado: **A** (Alta), **M** (Media), **B** (Baja) y **S** (Saltar), activos solo cuando no se está escribiendo en un campo de texto.
+Atajos de teclado: **A** (Alta), **M** (Media), **B** (Baja) y **S** (Saltar), activos solo cuando no se está escribiendo en un campo de texto. La interfaz usa siempre el tema claro (fondo blanco, esquinas cuadradas y paleta institucional), aunque el navegador del anotador esté en modo oscuro, y ocupa todo el ancho de la pantalla sin desbordes. Un indicador de pasos (1 · Consentimiento, 2 · Triaje, 3 · Resumen) muestra en qué punto está el anotador.
 
 ### Guía de clasificación mostrada al anotador
 

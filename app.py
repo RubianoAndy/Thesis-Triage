@@ -182,7 +182,7 @@ del análisis aun después de finalizar. No hay compensación económica ni ries
 dedicado. Este tratamiento se ajusta a la Ley 1581 de 2012 de Protección de Datos Personales de Colombia.
 """
 
-# --- Recursos visuales --------------------------------------------------------
+# --- Recursos visuales (misma identidad que la app de escritorio) ------------
 def _logo_data_uri():
     """Logo institucional (versión para fondo oscuro) incrustado como data URI."""
     try:
@@ -194,132 +194,133 @@ def _logo_data_uri():
 
 LOGO_URI = _logo_data_uri()
 
-GUIDE_HTML = """
-<div class="guide">
-  <div class="guide-title">CLASIFIQUE CADA CORREO SEGÚN SU NIVEL DE URGENCIA</div>
-  <div class="guide-row"><span class="bar alta"></span><div><b>ALTA · tecla A</b><br>
-    Riesgo a personas o infraestructura, corte total, emergencia que requiere atención inmediata.</div></div>
-  <div class="guide-row"><span class="bar media"></span><div><b>MEDIA · tecla M</b><br>
-    Afectación parcial del servicio o inconformidad operativa que debe atenderse en el corto plazo.</div></div>
-  <div class="guide-row"><span class="bar baja"></span><div><b>BAJA · tecla B</b><br>
-    Consulta, trámite administrativo o solicitud sin afectación del servicio.</div></div>
-  <div class="guide-note">⏱ El tiempo se cronometra desde que aparece cada correo hasta su decisión.
-    Lea cada correo completo antes de decidir; no hay respuestas correctas o incorrectas para usted.</div>
-</div>
-"""
 
-LEGEND_HTML = """
-<div class="legend">
-  <div><span class="bar alta"></span><b>Alta:</b> riesgo a personas o infraestructura, corte total, emergencia.</div>
-  <div><span class="bar media"></span><b>Media:</b> afectación parcial o inconformidad operativa a corto plazo.</div>
-  <div><span class="bar baja"></span><b>Baja:</b> consulta, trámite o solicitud sin afectación del servicio.</div>
-</div>
-"""
-
-HEADER_HTML = f"""
+def header_html(title, subtitle):
+    """Cabecera azul de borde a borde: logo, bloque académico, título dorado y subtítulo."""
+    logo = f'<img class="logo" src="{LOGO_URI}" alt="Universidad de La Salle">' if LOGO_URI else ""
+    return f"""
 <div class="header">
-  {'<img class="logo" src="' + LOGO_URI + '" alt="Universidad de La Salle">' if LOGO_URI else ''}
+  {logo}
   <div class="program">{PROGRAM.upper()}</div>
   <div class="faculty">{FACULTY}</div>
   <div class="author">{AUTHOR}</div>
-  <div class="title">Triaje manual de correos</div>
-  <div class="subtitle">Clasificación humana por nivel de urgencia · comparativa de tiempos</div>
+  <div class="title">{escape(title)}</div>
+  <div class="subtitle">{escape(subtitle)}</div>
+</div>"""
+
+
+GUIDE_HTML = """
+<div class="guide">
+  <div class="guide-title">CLASIFIQUE CADA CORREO SEGÚN SU NIVEL DE URGENCIA</div>
+  <div class="guide-row"><span class="bar alta"></span><div><div class="lvl">ALTA &nbsp;[A]</div>
+    Riesgo a personas o infraestructura, corte total, emergencia que requiere atención inmediata.</div></div>
+  <div class="guide-row"><span class="bar media"></span><div><div class="lvl">MEDIA &nbsp;[M]</div>
+    Afectación parcial del servicio o inconformidad operativa que debe atenderse en el corto plazo.</div></div>
+  <div class="guide-row"><span class="bar baja"></span><div><div class="lvl">BAJA &nbsp;[B]</div>
+    Consulta, trámite administrativo o solicitud sin afectación del servicio.</div></div>
 </div>
+<div class="hint">⏱&nbsp; El tiempo se cronometra desde que aparece cada correo hasta su decisión.</div>
 """
 
-FOOTER_HTML = ("<div class='footer'>Universidad de La Salle · Andrés Giovanny Rubiano Muñoz · 2026 © "
-               "Todos los derechos reservados</div>")
-
-STEPS = ["Consentimiento e identificación", "Triaje de correos", "Resumen de la sesión"]
-
-
-def steps_html(current):
-    """Indicador de pasos (1 a 3) con el paso actual resaltado."""
-    items = []
-    for i, label in enumerate(STEPS, 1):
-        cls = "done" if i < current else ("current" if i == current else "")
-        items.append(f"<div class='step {cls}'><span class='num'>{i}</span><span>{label}</span></div>")
-    return "<div class='steps'>" + "".join(items) + "</div>"
+FOOTER_HTML = ("<div class='footer'>Universidad de La Salle &nbsp;·&nbsp; Andrés Giovanny Rubiano Muñoz &nbsp;·&nbsp; "
+               "2026 © &nbsp;Todos los derechos reservados</div>")
 
 
 def progress_html(pos, total):
-    """Texto y barra de progreso del triaje."""
-    pct = int(pos / total * 100) if total else 0
-    return (f"<div class='progress'><div class='progress-text'><span>Correo <b>{pos}</b> de <b>{total}</b> "
-            f"pendientes</span><span class='progress-pct'>{pct} %</span></div>"
-            f"<div class='progress-track'><div class='progress-bar' style='width:{pct}%'></div></div></div>")
+    """«Correo n de N» y barra de progreso dorada, como en la versión de escritorio."""
+    pct = pos / total * 100 if total else 0
+    return (f"<div class='progress'><div class='progress-text'>Correo {pos} de {total}</div>"
+            f"<div class='progress-track'><div class='progress-bar' style='width:{pct:.1f}%'></div></div></div>")
 
 
 CSS = """
-:root { --panel:#012E55; --accent:#FFC20E; --card:#F4F8FC; --ink:#1A2E42; --muted:#5A7A96; --border:#C8D8E8; }
-/* Fondo blanco, ancho completo sin desbordes y esquinas cuadradas en toda la interfaz */
-body, .gradio-container, .gradio-container .main { background:#FFFFFF !important; color:var(--ink); }
-.gradio-container { max-width:100% !important; width:100% !important; margin:0 !important;
-                    padding:0 24px 24px !important; overflow-x:hidden; box-sizing:border-box; }
+:root { --panel:#012E55; --accent:#FFC20E; --card:#F4F8FC; --ink:#1A2E42; --muted:#5A7A96; --border:#C8D8E8;
+        --track:#D8E4EE; --neutral:#EEF2F7; --neutral-text:#5A7A96; --alta:#DC3545; --media:#FFC20E; --baja:#1A8A4A; }
+body, .gradio-container, .gradio-container .main { background:#FFFFFF !important; color:var(--ink);
+       font-family:"Segoe UI", system-ui, -apple-system, sans-serif; }
+.gradio-container { max-width:100% !important; width:100% !important; margin:0 !important; padding:0 !important;
+                    overflow-x:hidden; }
 .gradio-container *, .gradio-container *::before, .gradio-container *::after { border-radius:0 !important; }
 footer { display:none !important; }
+/* El contenedor principal de Gradio limita el ancho a 1280 px y añade relleno: se anula para ir de borde a borde */
+.gradio-container > main, main.app, .gradio-container .main { max-width:100% !important; width:100% !important;
+       margin:0 !important; padding:0 !important; }
+.gradio-container .main > .wrap, .gradio-container .contain { padding:0 !important; }
+.html-container.padding { padding:0 !important; }
+.gap { gap:0 !important; }
 
-.header { background:var(--panel); color:#F0F4F8; padding:20px 24px 0; text-align:center; }
-.header .logo { display:block; margin:0 auto 10px; height:96px; max-width:100%; object-fit:contain; }
-.header .program { font-weight:700; font-size:13px; letter-spacing:.06em; color:#F0F4F8; }
-.header .faculty, .header .author { font-size:12px; color:#8AABCA; }
-.header .title { font-size:26px; font-weight:800; margin-top:12px; color:#FFFFFF; }
-.header .subtitle { font-size:13px; color:#8AABCA; padding-bottom:14px; border-bottom:4px solid var(--accent); }
+/* Cabecera de borde a borde */
+.header { background:var(--panel); color:#F0F4F8; padding:26px 24px 0; text-align:center; }
+.header .logo { display:block; margin:0 auto 22px; height:84px; max-width:100%; object-fit:contain; }
+.header .program { font-weight:700; font-size:17px; color:#FFFFFF; }
+.header .faculty { font-size:12px; color:#8AABCA; margin-top:4px; }
+.header .author { font-size:13px; color:#F0F4F8; margin-top:4px; }
+.header .title { font-size:28px; font-weight:700; color:var(--accent); margin-top:18px; }
+.header .subtitle { font-size:13px; color:#8AABCA; margin-top:4px; padding-bottom:16px; border-bottom:3px solid var(--accent); }
 
-.steps { display:flex; gap:0; margin:16px 0 8px; border:1px solid var(--border); }
-.step { flex:1; display:flex; align-items:center; gap:10px; padding:10px 14px; font-size:13px; color:var(--muted);
-        background:#FFFFFF; border-right:1px solid var(--border); }
-.step:last-child { border-right:none; }
-.step .num { display:inline-flex; width:24px; height:24px; align-items:center; justify-content:center;
-             border:2px solid var(--border); font-weight:700; font-size:12px; flex:none; }
-.step.current { background:var(--card); color:var(--panel); font-weight:700; }
-.step.current .num { background:var(--panel); border-color:var(--panel); color:var(--accent); }
-.step.done { color:var(--panel); }
-.step.done .num { background:var(--accent); border-color:var(--accent); color:var(--panel); }
+/* Columna central compacta (bienvenida y resumen) */
+.narrow { max-width:560px; margin:0 auto; padding:28px 20px 10px; }
+.wide { padding:22px 36px 10px; }
+.section-label { font-size:12px; font-weight:700; color:var(--panel); letter-spacing:.02em; margin:14px 0 6px; }
+.hint { color:var(--muted); font-size:12px; margin:8px 0 14px; }
+.ok { color:var(--baja); font-size:12px; margin:6px 0 14px; }
 
-.consent-box { max-height:300px; overflow-y:auto; border:1px solid var(--border); padding:4px 18px; background:#FFFFFF; }
-.consent-box * { color:var(--ink) !important; }
-.form-card { border:1px solid var(--border); background:var(--card); padding:12px 16px; }
-.section-title { font-size:12px; font-weight:700; letter-spacing:.06em; color:var(--muted); margin:14px 0 6px; }
+.consent-box { max-height:220px; overflow-y:auto; border:1px solid var(--border); background:#FFFFFF; padding:2px 16px; }
+.consent-box * { color:var(--ink) !important; font-size:13px; }
+.consent-box h3 { font-size:14px !important; }
 
-.guide, .guide *, .email-card, .email-card *, .legend, .legend *, .summary-card, .summary-card * { color:var(--ink) !important; }
-.guide { background:#FFFFFF; border:1px solid var(--border); padding:16px 18px; }
-.guide-title { font-weight:700; font-size:12px; letter-spacing:.05em; margin-bottom:10px; }
-.guide-row { display:flex; gap:12px; margin:8px 0; font-size:14px; }
-.guide-row .bar, .legend .bar { width:6px; flex:none; display:inline-block; }
-.legend .bar { width:10px; height:10px; margin-right:8px; vertical-align:middle; }
-.bar.alta { background:#DC3545; } .bar.media { background:#FFC20E; } .bar.baja { background:#1A8A4A; }
-.guide-note { color:var(--muted) !important; font-size:12px; margin-top:12px; }
-.legend { display:flex; flex-wrap:wrap; gap:6px 24px; font-size:13px; margin:6px 0 4px; }
+/* Guía de niveles */
+.guide, .guide * { color:var(--ink) !important; }
+.guide { background:var(--card); border:1px solid var(--border); padding:18px 18px 10px; margin-top:6px; }
+.guide-title { font-weight:700; font-size:12px; margin-bottom:12px; }
+.guide-row { display:flex; gap:12px; margin:0 0 12px; font-size:12px; color:var(--muted) !important; }
+.guide-row .bar { width:6px; flex:none; }
+.guide-row .lvl { font-weight:700; font-size:14px; color:var(--ink) !important; margin-bottom:2px; }
+.bar.alta { background:var(--alta); } .bar.media { background:var(--media); } .bar.baja { background:var(--baja); }
 
-.progress { margin:14px 0 10px; }
-.progress-text { display:flex; justify-content:space-between; font-size:15px; color:var(--ink); }
-.progress-pct { color:var(--muted); font-weight:700; }
-.progress-track { height:8px; background:#D8E4EE; margin-top:6px; }
+/* Triaje */
+.progress { margin:4px 0 14px; }
+.progress-text { font-weight:700; font-size:15px; color:var(--panel); }
+.progress-track { height:6px; background:var(--track); margin-top:8px; }
 .progress-bar { height:100%; background:var(--accent); }
+.email-card, .email-card * { color:var(--ink) !important; }
+.email-card { background:var(--card); border:1px solid var(--border); padding:18px 22px; overflow-wrap:anywhere; }
+.email-card .label { font-size:11px; font-weight:700; color:var(--muted) !important; }
+.email-card .subject { font-size:20px; font-weight:700; margin:6px 0 14px; }
+.email-card .body { white-space:pre-wrap; font-size:15px; line-height:1.55; border-top:1px solid var(--border);
+                    padding-top:14px; min-height:42vh; }
 
-.email-card { background:var(--card); border:1px solid var(--border); padding:18px 20px; overflow-wrap:anywhere; }
-.email-card .label { font-size:11px; font-weight:700; letter-spacing:.06em; color:var(--muted) !important; }
-.email-card .subject { font-size:20px; font-weight:700; margin:4px 0 14px; }
-.email-card .body { white-space:pre-wrap; font-size:16px; line-height:1.55; border-top:1px solid var(--border); padding-top:12px; }
+/* Resumen */
+.stats { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:8px 0 18px; }
+.stat { border:1px solid var(--border); border-top:4px solid var(--accent); background:var(--card); padding:18px 20px; }
+.stat .value { font-size:30px; font-weight:700; color:var(--panel) !important; }
+.stat .label { font-size:11px; font-weight:700; color:var(--muted) !important; margin-top:4px; }
+.file-card { border:1px solid var(--border); background:var(--card); padding:14px 18px; }
+.file-card .label { font-size:11px; font-weight:700; color:var(--muted) !important; }
+.file-card .path { font-size:12px; color:var(--ink) !important; margin-top:6px; }
+.complete { color:var(--baja); font-weight:700; font-size:15px; margin:4px 0 14px; }
+.footer { text-align:center; color:var(--muted); font-size:12px; padding:26px 0 18px; }
 
-.summary-card { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin:12px 0; }
-.stat { border:1px solid var(--border); border-top:4px solid var(--accent); background:var(--card); padding:14px 16px; }
-.stat .value { font-size:28px; font-weight:800; color:var(--panel) !important; }
-.stat .label { font-size:11px; font-weight:700; letter-spacing:.06em; color:var(--muted) !important; }
-.summary-note { border:1px solid var(--border); padding:12px 16px; margin-top:8px; background:#FFFFFF; color:var(--ink); }
-
-.footer { text-align:center; color:var(--muted); font-size:12px; margin-top:18px; }
-#btn-alta, #btn-media, #btn-baja { min-height:56px; font-size:16px; font-weight:700; border:none !important; }
-#btn-alta  { background:#DC3545 !important; color:#FFFFFF !important; }
-#btn-media { background:#FFC20E !important; color:#012E55 !important; }
-#btn-baja  { background:#1A8A4A !important; color:#FFFFFF !important; }
-#btn-start { background:var(--accent) !important; color:var(--panel) !important; font-weight:700; min-height:50px; font-size:16px; border:none !important; }
-#btn-continue { background:var(--panel) !important; color:#FFFFFF !important; font-weight:700; border:none !important; }
+/* Botones (planos, como en la app de escritorio) */
+#btn-start { background:var(--accent) !important; color:var(--panel) !important; font-weight:700; font-size:15px;
+             border:none !important; min-height:48px; max-width:220px; margin:4px auto 0; display:block; }
+#btn-alta, #btn-media, #btn-baja { min-height:52px; font-size:15px; font-weight:700; border:none !important; }
+#btn-alta  { background:var(--alta) !important; color:#FFFFFF !important; }
+#btn-media { background:var(--media) !important; color:var(--panel) !important; }
+#btn-baja  { background:var(--baja) !important; color:#FFFFFF !important; }
+#btn-skip  { background:var(--neutral) !important; color:var(--neutral-text) !important; font-weight:700; border:none !important;
+             max-width:170px; }
+#btn-quit, #btn-exit { background:var(--panel) !important; color:#F0F4F8 !important; font-weight:700; border:none !important; }
+#btn-quit { max-width:220px; margin-left:auto; }
+#btn-exit { max-width:120px; margin-left:auto; }
+#btn-continue { background:var(--accent) !important; color:var(--panel) !important; font-weight:700; border:none !important;
+                max-width:260px; }
+.actions-row { justify-content:space-between; margin-top:16px !important; }
+.consent-box .prose, .consent-box > div { max-height:none; overflow:visible; }
 """
 
-# Al cargar: fuerza el tema claro (la interfaz es blanca aunque el navegador esté en modo oscuro)
-# y activa los atajos de teclado A/M/B/S, que pulsan los botones (solo si no se está escribiendo).
+# Al cargar: fuerza el tema claro (interfaz blanca aunque el navegador esté en modo oscuro) y activa los
+# atajos de teclado A/M/B/S/Q, que pulsan los botones del triaje (solo si no se está escribiendo).
 SHORTCUTS_JS = """
 () => {
   const url = new URL(window.location.href);
@@ -331,7 +332,7 @@ SHORTCUTS_JS = """
   document.addEventListener('keydown', (e) => {
     const tag = (document.activeElement && document.activeElement.tagName) || '';
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-    const map = {a:'btn-alta', m:'btn-media', b:'btn-baja', s:'btn-saltar'};
+    const map = {a:'btn-alta', m:'btn-media', b:'btn-baja', s:'btn-skip', q:'btn-quit'};
     const id = map[e.key.toLowerCase()];
     if (!id) return;
     const btn = document.getElementById(id);
@@ -369,33 +370,66 @@ def render_email(state):
     return html, progress_html(pos, total)
 
 
-def summary_html(state):
-    """Resumen de la sesión (equivale a la pantalla final de la versión de escritorio)."""
-    done = len(load_done(state["slug"]))
-    total = len(LOT)
-    stats = [("Clasificados en esta sesión", str(state["classified"])),
+def load_records(slug):
+    """Registros ya guardados por el anotador (para las estadísticas del resumen)."""
+    path = MANUAL_DIR / f"{slug}.csv"
+    if not path.exists():
+        return []
+    with open(path, encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def summary_html(state, already_complete=False):
+    """Resumen de la sesión: tarjetas de estadística y archivo del anotador (como en la app de escritorio)."""
+    records = load_records(state["slug"])
+    done, total = len(records), len(LOT)
+    stats = [("Correos clasificados", str(state["classified"])),
              ("Progreso acumulado", f"{done} / {total}")]
     if state["classified"]:
-        stats.append(("Tiempo total de la sesión", f"{state['total_seconds']:.1f} s"))
-        stats.append(("Promedio por correo", f"{state['total_seconds'] / state['classified']:.1f} s"))
+        stats.append(("Tiempo total", f"{state['total_seconds']:.1f} s"))
+        stats.append(("Promedio por correo", f"{state['total_seconds'] / state['classified']:.2f} s"))
+    if records:
+        secs = sorted(float(r["segundos"]) for r in records)
+        mid = len(secs) // 2
+        median = secs[mid] if len(secs) % 2 else (secs[mid - 1] + secs[mid]) / 2
+        counts = {k: sum(1 for r in records if r["etiqueta_humana"] == k) for k in ("Alta", "Media", "Baja")}
+        stats.append(("Mediana por correo", f"{median:.2f} s"))
+        stats.append(("Distribución (Alta / Media / Baja)", f"{counts['Alta']} / {counts['Media']} / {counts['Baja']}"))
     cards = "".join(f"<div class='stat'><div class='value'>{v}</div><div class='label'>{k.upper()}</div></div>"
                     for k, v in stats)
-    if done >= total:
-        note = "✅ <b>Triaje completo. Muchas gracias por su participación.</b>"
-    else:
-        note = (f"Quedan <b>{total - done}</b> correos. Puede continuar ahora o volver más tarde con el mismo "
-                f"identificador: la sesión se reanuda donde quedó.")
-    return (f"<div class='summary-card'>{cards}</div>"
-            f"<div class='summary-note'>Anotador: <b>{escape(state['display'])}</b> · archivo "
-            f"<code>manual/{state['slug']}.csv</code>, sincronizado automáticamente con el repositorio de datos "
-            f"en menos de un minuto.<br><br>{note}</div>")
+    head = (f"<div class='complete'>✓&nbsp; El anotador «{escape(state['display'])}» ya clasificó los {total} correos.</div>"
+            if already_complete or done >= total else "")
+    return (f"{head}<div class='stats'>{cards}</div>"
+            f"<div class='file-card'><div class='label'>ARCHIVO DEL ANOTADOR</div>"
+            f"<div class='path'>manual/{state['slug']}.csv &nbsp;·&nbsp; se sincroniza con el repositorio de datos "
+            f"en menos de un minuto</div></div>")
 
 
 def show(screen, state, email="", progress="", summary=""):
-    """Arma la tupla de salidas: estado, visibilidad de las tres pantallas, indicador de pasos y contenidos."""
-    return (state,
+    """Arma la tupla de salidas: estado, cabecera, visibilidad de las pantallas y contenidos."""
+    if screen == 1:
+        header = header_html("Triaje manual de correos",
+                             "Clasificación humana por nivel de urgencia · comparativa de tiempos")
+        continue_lbl = gr.update()
+    elif screen == 2:
+        header = header_html("Triaje en curso",
+                             f"Anotador: {state['display']}  ·  clasificación a ciegas en orden de llegada")
+        continue_lbl = gr.update()
+    else:
+        header = header_html("Sesión finalizada", f"Anotador: {state['display']}")
+        remaining = len(LOT) - len(load_done(state["slug"]))
+        continue_lbl = gr.update(visible=remaining > 0, value=f"↻  Continuar ({remaining} pendientes)")
+    return (state, header,
             gr.update(visible=(screen == 1)), gr.update(visible=(screen == 2)), gr.update(visible=(screen == 3)),
-            steps_html(screen), email, progress, summary)
+            email, progress, summary, continue_lbl)
+
+
+def preview_name(raw):
+    """Retroalimentación en vivo del identificador: cómo se guardará el archivo."""
+    slug = slugify(format_display_name(raw or ""))
+    if slug:
+        return f"<div class='ok'>✔&nbsp; Se guardará como: &nbsp;{slug}.csv</div>"
+    return "<div class='hint'>Escribe el identificador del anotador para habilitar el triaje.</div>"
 
 
 def start_session(name, consent):
@@ -409,7 +443,7 @@ def start_session(name, consent):
     record_consent(display, slug)
     state = new_session(display, slug)
     if not state["pending"]:
-        return show(3, state, summary=summary_html(state))
+        return show(3, state, summary=summary_html(state, already_complete=True))
     html, progress = render_email(state)
     return show(2, state, email=html, progress=progress)
 
@@ -442,7 +476,7 @@ def continue_session(state):
     """Recarga los pendientes y reanuda el triaje."""
     fresh = new_session(state["display"], state["slug"])
     if not fresh["pending"]:
-        return show(3, fresh, summary=summary_html(fresh))
+        return show(3, fresh, summary=summary_html(fresh, already_complete=True))
     html, progress = render_email(fresh)
     return show(2, fresh, email=html, progress=progress)
 
@@ -457,44 +491,43 @@ THEME = gr.themes.Soft(primary_hue="blue", radius_size=gr.themes.sizes.radius_no
 
 with gr.Blocks(title="Triaje manual de correos", css=CSS, js=SHORTCUTS_JS, theme=THEME) as demo:
     state = gr.State(None)
-    gr.HTML(HEADER_HTML)
-    steps = gr.HTML(steps_html(1))
+    header = gr.HTML(header_html("Triaje manual de correos",
+                                 "Clasificación humana por nivel de urgencia · comparativa de tiempos"))
 
-    # Pantalla 1 · consentimiento, identificador y guía
-    with gr.Column(visible=True) as welcome:
-        gr.HTML("<div class='section-title'>PASO 1 · LEA EL CONSENTIMIENTO INFORMADO</div>")
+    # Pantalla 1 · bienvenida: consentimiento, identificador y guía (columna central compacta)
+    with gr.Column(visible=True, elem_classes=["narrow"]) as welcome:
+        gr.HTML("<div class='section-label'>CONSENTIMIENTO INFORMADO</div>")
         gr.Markdown(CONSENT_MD, elem_classes=["consent-box"])
-        with gr.Column(elem_classes=["form-card"]):
-            consent = gr.Checkbox(label="He leído y acepto el consentimiento informado y participo de forma libre y voluntaria.")
-            name = gr.Textbox(label="Nombre o identificador del anotador",
-                              placeholder="p. ej. Andrés Rubiano (úselo igual si vuelve a entrar: la sesión se reanuda)")
-        gr.HTML("<div class='section-title'>PASO 2 · CÓMO CLASIFICAR</div>")
+        consent = gr.Checkbox(label="He leído y acepto el consentimiento informado y participo de forma libre y voluntaria.")
+        gr.HTML("<div class='section-label'>IDENTIFICADOR DEL ANOTADOR</div>")
+        name = gr.Textbox(show_label=False, placeholder="Nombre o identificador (p. ej. Andrés Rubiano)")
+        name_hint = gr.HTML(preview_name(""))
         gr.HTML(GUIDE_HTML)
-        start_btn = gr.Button("Comenzar triaje →", elem_id="btn-start")
+        start_btn = gr.Button("Comenzar triaje  →", elem_id="btn-start")
 
-    # Pantalla 2 · triaje
-    with gr.Column(visible=False) as triage:
+    # Pantalla 2 · triaje (ancho completo)
+    with gr.Column(visible=False, elem_classes=["wide"]) as triage:
         progress = gr.HTML()
         email_html = gr.HTML()
-        gr.HTML(LEGEND_HTML)
         with gr.Row():
-            alta_btn = gr.Button("Alta  (A)", elem_id="btn-alta")
-            media_btn = gr.Button("Media  (M)", elem_id="btn-media")
-            baja_btn = gr.Button("Baja  (B)", elem_id="btn-baja")
-        with gr.Row():
-            skip_btn = gr.Button("Saltar este correo  (S)", elem_id="btn-saltar", variant="secondary")
-            quit_btn = gr.Button("Guardar y salir", variant="secondary")
+            alta_btn = gr.Button("🔴  Alta  (A)", elem_id="btn-alta")
+            media_btn = gr.Button("🟡  Media  (M)", elem_id="btn-media")
+            baja_btn = gr.Button("🟢  Baja  (B)", elem_id="btn-baja")
+        with gr.Row(elem_classes=["actions-row"]):
+            skip_btn = gr.Button("⏭  Saltar  (S)", elem_id="btn-skip")
+            quit_btn = gr.Button("💾  Guardar y salir  (Q)", elem_id="btn-quit")
 
-    # Pantalla 3 · resumen
-    with gr.Column(visible=False) as summary:
+    # Pantalla 3 · resumen (columna central compacta)
+    with gr.Column(visible=False, elem_classes=["narrow"]) as summary:
         summary_text = gr.HTML()
-        with gr.Row():
-            continue_btn = gr.Button("↻ Continuar el triaje", elem_id="btn-continue")
-            restart_btn = gr.Button("Otro anotador", variant="secondary")
+        with gr.Row(elem_classes=["actions-row"]):
+            continue_btn = gr.Button("↻  Continuar", elem_id="btn-continue")
+            exit_btn = gr.Button("Salir", elem_id="btn-exit")
 
     gr.HTML(FOOTER_HTML)
 
-    outputs = [state, welcome, triage, summary, steps, email_html, progress, summary_text]
+    outputs = [state, header, welcome, triage, summary, email_html, progress, summary_text, continue_btn]
+    name.change(preview_name, [name], [name_hint])
     start_btn.click(start_session, [name, consent], outputs)
     alta_btn.click(lambda s: decide(s, "a"), [state], outputs)
     media_btn.click(lambda s: decide(s, "m"), [state], outputs)
@@ -502,7 +535,7 @@ with gr.Blocks(title="Triaje manual de correos", css=CSS, js=SHORTCUTS_JS, theme
     skip_btn.click(lambda s: decide(s, "s"), [state], outputs)
     quit_btn.click(lambda s: decide(s, "q"), [state], outputs)
     continue_btn.click(continue_session, [state], outputs)
-    restart_btn.click(restart, None, outputs)
+    exit_btn.click(restart, None, outputs)
 
 if __name__ == "__main__":
     # Render asigna el puerto en la variable de entorno PORT; en local se usa 7860.

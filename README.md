@@ -64,6 +64,7 @@ Cuaderno de Colab (Thesis-Project)            Hugging Face (dataset privado)    
 ├── README.md            # Este archivo
 ├── assets/
 │   └── images/          # Logo institucional y foto del autor
+├── docs/                # Capturas de las tres pantallas (se muestran en este README)
 └── data/                # ⛔ se crea en ejecución y no se versiona: carpeta local sincronizada con el dataset
     ├── manual/          #    <anotador>.csv  → id, orden_llegada, etiqueta_humana, segundos
     └── consent/         #    <anotador>.json → constancia de aceptación del consentimiento
@@ -79,7 +80,18 @@ Cuaderno de Colab (Thesis-Project)            Hugging Face (dataset privado)    
 | **2. Triaje** | Progreso (`Correo n de N`), tarjeta con asunto y mensaje, botones **Alta / Media / Baja**, **Saltar** y **Guardar y salir** | `_showTriage` + `_decide` |
 | **3. Resumen** | Clasificados en la sesión, progreso acumulado, tiempo total y promedio por correo, botones **Continuar** y **Otro anotador** | `_showSummary` |
 
-Atajos de teclado: **A** (Alta), **M** (Media), **B** (Baja) y **S** (Saltar), activos solo cuando no se está escribiendo en un campo de texto. La interfaz usa siempre el tema claro (fondo blanco, esquinas cuadradas y paleta institucional), aunque el navegador del anotador esté en modo oscuro, y ocupa todo el ancho de la pantalla sin desbordes. Un indicador de pasos (1 · Consentimiento, 2 · Triaje, 3 · Resumen) muestra en qué punto está el anotador.
+Atajos de teclado: **A** (Alta), **M** (Media), **B** (Baja), **S** (Saltar) y **Q** (Guardar y salir), activos solo cuando no se está escribiendo en un campo de texto. La interfaz usa siempre el tema claro, aunque el navegador del anotador esté en modo oscuro, y ocupa todo el ancho de la pantalla sin desbordes. Un indicador de pasos (1 · Consentimiento, 2 · Triaje, 3 · Resumen) en la cabecera muestra en qué punto está el anotador.
+
+**Identidad visual.** La plataforma sigue la identidad de la Universidad de La Salle: azul institucional (`#002E5B`) y dorado (`#F2A900`) sobre fondo claro, tipografía *Source Serif 4* para títulos e *Inter* para la lectura, y esquinas rectas en todos los elementos (sin bordes redondeados).
+
+<div align="center">
+    <img src="docs/01-bienvenida.png" width="720" alt="Pantalla de bienvenida: consentimiento informado, identificador y guía de niveles"><br>
+    <em>1 · Bienvenida</em><br><br>
+    <img src="docs/02-triaje.png" width="720" alt="Pantalla de triaje: correo a ciegas con botones Alta, Media y Baja"><br>
+    <em>2 · Triaje</em><br><br>
+    <img src="docs/03-resumen.png" width="720" alt="Pantalla de resumen: estadísticas de la sesión"><br>
+    <em>3 · Resumen</em>
+</div>
 
 ### Guía de clasificación mostrada al anotador
 
@@ -143,6 +155,13 @@ python app.py
 ```
 
 La aplicación queda en `http://localhost:7860`.
+
+Para probar la interfaz **sin tocar el repositorio de datos** (p. ej. al ajustar el diseño), se puede indicar un lote local con `LOT_FILE`; en ese modo no se necesita `HF_TOKEN`, no se descarga nada y los archivos del anotador solo se escriben en `data/`, sin sincronizarse:
+
+```bash
+set LOT_FILE=ruta\a\simulation.csv          # PowerShell: $env:LOT_FILE="ruta\a\simulation.csv"
+python app.py
+```
 
 ---
 

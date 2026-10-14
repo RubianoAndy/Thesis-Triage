@@ -43,6 +43,7 @@ from huggingface_hub import CommitScheduler, hf_hub_download
 # --- Configuración -----------------------------------------------------------
 HF_TOKEN     = os.environ.get("HF_TOKEN")
 DATASET_REPO = os.environ.get("DATASET_REPO", "RubianoAndy/thesis-simulation")
+LOT_FILE     = os.environ.get("LOT_FILE")   # solo para pruebas locales: ruta a un simulation.csv (sin sincronizar)
 
 DATA_DIR    = Path("data")            # carpeta local sincronizada con el dataset
 MANUAL_DIR  = DATA_DIR / "manual"
@@ -76,9 +77,12 @@ def slugify(name):
 # --- Lote --------------------------------------------------------------------
 def load_lot():
     """Descarga el lote del repositorio de datos y lo carga en orden FIFO."""
-    if not HF_TOKEN:
+    if LOT_FILE:
+        path = LOT_FILE          # modo local: lote desde un archivo, sin tocar el repositorio
+    elif not HF_TOKEN:
         raise RuntimeError("Falta la variable de entorno HF_TOKEN en la configuración del servicio.")
-    path = hf_hub_download(DATASET_REPO, "simulation.csv", repo_type="dataset", token=HF_TOKEN)
+    else:
+        path = hf_hub_download(DATASET_REPO, "simulation.csv", repo_type="dataset", token=HF_TOKEN)
     with open(path, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     for i, r in enumerate(rows, 1):
@@ -89,7 +93,14 @@ def load_lot():
 LOT = load_lot()
 
 # --- Sincronización con el repositorio de datos -------------------------------
-scheduler = CommitScheduler(
+class _LocalScheduler:
+    """Sustituto del CommitScheduler en modo local: solo aporta el candado, no sincroniza nada."""
+    def __init__(self):
+        import threading
+        self.lock = threading.Lock()
+
+
+scheduler = _LocalScheduler() if LOT_FILE else CommitScheduler(
     repo_id=DATASET_REPO,
     repo_type="dataset",
     folder_path=DATA_DIR,
@@ -103,7 +114,7 @@ scheduler = CommitScheduler(
 def fetch_existing(slug):
     """Recupera del repositorio el CSV del anotador si existe (reanudación entre dispositivos)."""
     local = MANUAL_DIR / f"{slug}.csv"
-    if local.exists():
+    if local.exists() or LOT_FILE:
         return
     try:
         remote = hf_hub_download(DATASET_REPO, f"manual/{slug}.csv", repo_type="dataset",
@@ -195,53 +206,88 @@ def _logo_data_uri():
 LOGO_URI = _logo_data_uri()
 
 
-def header_html(title, subtitle):
-    """Cabecera azul de borde a borde y compacta: logo a la izquierda, bloque académico y título al centro."""
+STEPS = ["Consentimiento", "Triaje", "Resumen"]
+
+
+def steps_html(current):
+    """Indicador de pasos de la cabecera: el paso activo en dorado, los completados con marca."""
+    items = []
+    for n, label in enumerate(STEPS, 1):
+        cls = "done" if n < current else ("active" if n == current else "")
+        mark = "✓" if n < current else str(n)
+        items.append(f"<div class='step {cls}'><span class='step-n'>{mark}</span><span class='step-l'>{label}</span></div>")
+    return "<div class='steps'>" + "<div class='step-sep'></div>".join(items) + "</div>"
+
+
+def header_html(title, subtitle, step=1):
+    """Cabecera institucional de borde a borde: logo, bloque académico, título y pasos del proceso."""
     logo = f'<img class="logo" src="{LOGO_URI}" alt="Universidad de La Salle">' if LOGO_URI else ""
     return f"""
 <div class="header">
-  <div class="header-inner">
+  <div class="header-top">
     <div class="header-logo">{logo}</div>
+    <div class="header-meta">
+      <div class="program">{PROGRAM}</div>
+      <div class="faculty">{FACULTY}</div>
+    </div>
+  </div>
+  <div class="header-main">
     <div class="header-text">
-      <div class="program">{PROGRAM.upper()}</div>
-      <div class="faculty">{FACULTY} &nbsp;·&nbsp; {AUTHOR}</div>
+      <div class="eyebrow">Proyecto de grado &nbsp;·&nbsp; {AUTHOR}</div>
       <div class="title">{escape(title)}</div>
       <div class="subtitle">{escape(subtitle)}</div>
     </div>
-    <div class="header-logo"></div>
+    {steps_html(step)}
   </div>
 </div>"""
 
 
 GUIDE_HTML = """
 <div class="guide">
-  <div class="guide-title">CLASIFIQUE CADA CORREO SEGÚN SU NIVEL DE URGENCIA</div>
-  <div class="guide-row"><span class="bar alta"></span><div><div class="lvl">ALTA &nbsp;[A]</div>
-    Riesgo a personas o infraestructura, corte total, emergencia que requiere atención inmediata.</div></div>
-  <div class="guide-row"><span class="bar media"></span><div><div class="lvl">MEDIA &nbsp;[M]</div>
-    Afectación parcial del servicio o inconformidad operativa que debe atenderse en el corto plazo.</div></div>
-  <div class="guide-row"><span class="bar baja"></span><div><div class="lvl">BAJA &nbsp;[B]</div>
-    Consulta, trámite administrativo o solicitud sin afectación del servicio.</div></div>
+  <div class="guide-title">Niveles de urgencia</div>
+  <div class="guide-sub">Clasifique cada correo según el impacto que describe.</div>
+  <div class="guide-row alta"><div class="guide-head"><span class="lvl">Alta</span><kbd>A</kbd></div>
+    <div class="guide-desc">Riesgo a personas o infraestructura, corte total, emergencia que requiere atención inmediata.</div></div>
+  <div class="guide-row media"><div class="guide-head"><span class="lvl">Media</span><kbd>M</kbd></div>
+    <div class="guide-desc">Afectación parcial del servicio o inconformidad operativa que debe atenderse en el corto plazo.</div></div>
+  <div class="guide-row baja"><div class="guide-head"><span class="lvl">Baja</span><kbd>B</kbd></div>
+    <div class="guide-desc">Consulta, trámite administrativo o solicitud sin afectación del servicio.</div></div>
 </div>
-<div class="hint">⏱&nbsp; El tiempo se cronometra desde que aparece cada correo hasta su decisión.</div>
+<div class="note"><span class="note-icon">⏱</span> El tiempo se cronometra desde que aparece cada correo hasta su decisión.
+  Los correos se presentan a ciegas y en orden de llegada; puede cerrar y reanudar después con el mismo identificador.</div>
 """
 
-FOOTER_HTML = ("<div class='footer'>Universidad de La Salle &nbsp;·&nbsp; Andrés Giovanny Rubiano Muñoz &nbsp;·&nbsp; "
-               "2026 © &nbsp;Todos los derechos reservados</div>")
+FOOTER_HTML = ("<div class='footer'><span class='footer-brand'>Universidad de La Salle</span>"
+               "<span class='footer-sep'></span>Bogotá D. C., Colombia"
+               "<span class='footer-sep'></span>Andrés Giovanny Rubiano Muñoz"
+               "<span class='footer-sep'></span>2026 © Todos los derechos reservados</div>")
 
 
 def progress_html(pos, total):
-    """«Correo n de N» y barra de progreso dorada, como en la versión de escritorio."""
+    """«Correo n de N», porcentaje y barra de progreso dorada."""
     pct = pos / total * 100 if total else 0
-    return (f"<div class='progress'><div class='progress-text'>Correo {pos} de {total}</div>"
+    return (f"<div class='progress'><div class='progress-head'><div class='progress-text'>Correo "
+            f"<strong>{pos}</strong> de {total}</div><div class='progress-pct'>{pct:.0f} %</div></div>"
             f"<div class='progress-track'><div class='progress-bar' style='width:{pct:.1f}%'></div></div></div>")
 
 
+# Tipografías institucionales: serif para títulos (tono académico) y sans para la lectura.
+HEAD = """
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+"""
+
 CSS = """
-:root { --panel:#012E55; --accent:#FFC20E; --card:#F4F8FC; --ink:#1A2E42; --muted:#5A7A96; --border:#C8D8E8;
-        --track:#D8E4EE; --neutral:#EEF2F7; --neutral-text:#5A7A96; --alta:#DC3545; --media:#FFC20E; --baja:#1A8A4A; }
-body, .gradio-container, .gradio-container .main { background:#FFFFFF !important; color:var(--ink);
-       font-family:"Segoe UI", system-ui, -apple-system, sans-serif; }
+:root {
+  --navy:#002E5B; --navy-deep:#001F40; --navy-soft:#0B3F76; --gold:#F2A900; --gold-soft:#FFF4D6;
+  --bg:#F4F6F9; --card:#FFFFFF; --ink:#13263B; --muted:#5B6B7E; --faint:#8A97A8; --border:#D9E0E8; --track:#E3E8EF;
+  --alta:#C8102E; --alta-soft:#FBE9EC; --media:#E09A00; --media-soft:#FFF4D6; --baja:#1B7F4A; --baja-soft:#E6F4EC;
+  --serif:"Source Serif 4", Georgia, "Times New Roman", serif;
+  --sans:"Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+body, .gradio-container, .gradio-container .main { background:var(--bg) !important; color:var(--ink);
+       font-family:var(--sans); }
 .gradio-container { max-width:100% !important; width:100% !important; margin:0 !important; padding:0 !important;
                     overflow-x:hidden; }
 .gradio-container *, .gradio-container *::before, .gradio-container *::after { border-radius:0 !important; }
@@ -252,80 +298,151 @@ footer { display:none !important; }
 .gradio-container .main > .wrap, .gradio-container .contain { padding:0 !important; }
 .html-container.padding { padding:0 !important; }
 .gap { gap:0 !important; }
+.block, .form { background:transparent !important; border:none !important; box-shadow:none !important; }
 
-/* Cabecera de borde a borde, compacta (logo a un lado para ahorrar alto) */
-.header { background:var(--panel); color:#F0F4F8; padding:14px 28px 0; }
-.header-inner { display:flex; align-items:center; gap:16px; }
-.header-logo { flex:0 0 190px; }
-.header-logo .logo { height:66px; max-width:100%; object-fit:contain; display:block; }
-.header-text { flex:1; text-align:center; }
-.header .program { font-weight:700; font-size:15px; color:#FFFFFF; }
-.header .faculty { font-size:12px; color:#8AABCA; margin-top:2px; }
-.header .title { font-size:24px; font-weight:700; color:var(--accent); margin-top:6px; }
-.header .subtitle { font-size:12px; color:#8AABCA; margin-top:2px; padding-bottom:10px; }
-.header::after { content:""; display:block; height:3px; background:var(--accent); margin:0 -28px; }
-@media (max-width: 760px) { .header-logo { display:none; } }
+/* ---- Cabecera institucional ------------------------------------------------ */
+.header { background:linear-gradient(135deg, var(--navy-deep) 0%, var(--navy) 60%, var(--navy-soft) 100%);
+          color:#F0F4F8; border-bottom:4px solid var(--gold); }
+.header-top { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:14px 40px 12px;
+              border-bottom:1px solid rgba(255,255,255,.12); }
+.header-logo .logo { height:52px; object-fit:contain; display:block; }
+.header-meta { text-align:right; }
+.header .program { font-family:var(--serif); font-weight:600; font-size:15px; color:#FFFFFF; letter-spacing:.01em; }
+.header .faculty { font-size:11.5px; color:#A8BDD3; margin-top:2px; }
+.header-main { display:flex; align-items:center; justify-content:space-between; gap:32px; padding:18px 40px 20px; }
+.header .eyebrow { font-size:11px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); }
+.header .title { font-family:var(--serif); font-size:30px; font-weight:700; color:#FFFFFF; margin-top:4px; line-height:1.15; }
+.header .subtitle { font-size:13px; color:#A8BDD3; margin-top:6px; }
 
-/* Columna central compacta (bienvenida y resumen) */
-.narrow { max-width:640px; margin:0 auto; padding:20px 20px 6px; }
-.welcome { max-width:1280px; margin:0 auto; padding:12px 28px 4px; }
-.wide { padding:14px 36px 6px; }
-.section-label { font-size:12px; font-weight:700; color:var(--panel); letter-spacing:.02em; margin:4px 0 6px; }
-.hint { color:var(--muted); font-size:12px; margin:6px 0 8px; }
-.ok { color:var(--baja); font-size:12px; margin:6px 0 8px; }
+.steps { display:flex; align-items:center; gap:10px; flex:none; }
+.step { display:flex; align-items:center; gap:9px; font-size:12.5px; font-weight:500; white-space:nowrap; }
+.step .step-l { color:#8DA4BD !important; }
+.step-n { width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;
+          border:1.5px solid #4B6A8E; color:#A8BDD3 !important; font-size:12px; font-weight:700; }
+.step.active .step-l { color:#FFFFFF !important; font-weight:600; }
+.step.active .step-n { background:var(--gold); border-color:var(--gold); color:var(--navy-deep) !important; }
+.step.done .step-n { background:transparent; border-color:var(--gold); color:var(--gold) !important; }
+.step.done .step-l { color:#DCE6F2 !important; }
+.step-sep { width:28px; height:1px; background:#4B6A8E; }
+@media (max-width: 900px) { .steps { display:none; } .header-main { padding:16px 24px; } .header-top { padding:12px 24px; } }
 
-.consent-box { height:calc(100vh - 330px); max-height:calc(100vh - 330px); min-height:200px; overflow-y:auto; border:1px solid var(--border); background:#FFFFFF; padding:2px 16px; }
-.consent-box * { color:var(--ink) !important; font-size:13px; }
-.consent-box h3 { font-size:14px !important; }
+/* ---- Contenedores de pantalla ------------------------------------------- */
+.narrow { max-width:760px; margin:0 auto; padding:32px 24px 12px; }
+.welcome { max-width:1320px; margin:0 auto; padding:24px 40px 8px; }
+.wide { max-width:1320px; margin:0 auto; padding:20px 40px 8px; }
+.section-label { font-family:var(--serif); font-size:18px; font-weight:700; color:var(--navy); margin:4px 0 10px;
+                 padding-left:12px; border-left:4px solid var(--gold); line-height:1.2; }
+.section-label small { display:block; font-family:var(--sans); font-size:12px; font-weight:400; color:var(--muted); margin-top:2px; }
+.hint { color:var(--muted); font-size:12.5px; margin:8px 0 10px; }
+.ok { color:var(--baja); font-size:12.5px; font-weight:500; margin:8px 0 10px; }
+.ok code { background:var(--baja-soft); color:var(--baja); padding:1px 6px; font-size:12px; }
+
+/* Consentimiento: hoja blanca con sombra suave, como un documento */
+.consent-box { height:calc(100vh - 400px) !important; max-height:calc(100vh - 400px) !important; min-height:220px;
+               overflow:hidden !important; border:1px solid var(--border); border-top:3px solid var(--navy); background:var(--card);
+               padding:0 !important; box-shadow:0 1px 2px rgba(0,46,91,.06); }
+.consent-box * { color:var(--ink) !important; font-size:13.5px; line-height:1.6; }
+.consent-box h3 { font-family:var(--serif) !important; font-size:17px !important; color:var(--navy) !important;
+                  margin:12px 0 6px !important; }
+.consent-box strong { color:var(--navy) !important; }
+/* Solo el texto se desplaza: el bloque exterior queda fijo para evitar la doble barra */
+.consent-box .prose { height:calc(100vh - 403px) !important; max-height:none !important; overflow-y:auto !important;
+                      padding:8px 22px 14px !important; box-sizing:border-box; }
+.consent-check label { font-size:13.5px !important; color:var(--ink) !important; font-weight:500 !important; }
+.consent-check input[type=checkbox] { accent-color:var(--navy); width:18px !important; height:18px !important;
+       border:1.5px solid var(--navy) !important; background:#FFFFFF; }
+.consent-check input[type=checkbox]:checked { background:var(--navy) !important; border-color:var(--navy) !important; }
+
+/* Identificador */
+#name-box textarea, #name-box input { font-size:15px !important; border:1.5px solid var(--border) !important;
+       background:var(--card) !important; color:var(--ink) !important; padding:12px 14px !important; }
+#name-box textarea:focus, #name-box input:focus { border-color:var(--navy) !important; box-shadow:0 0 0 3px rgba(0,46,91,.12) !important; }
 
 /* Guía de niveles */
-.guide, .guide * { color:var(--ink) !important; }
-.guide { background:var(--card); border:1px solid var(--border); padding:14px 18px 6px; margin-top:4px; }
-.guide-title { font-weight:700; font-size:12px; margin-bottom:12px; }
-.guide-row { display:flex; gap:12px; margin:0 0 9px; font-size:12px; color:var(--muted) !important; }
-.guide-row .bar { width:6px; flex:none; }
-.guide-row .lvl { font-weight:700; font-size:14px; color:var(--ink) !important; margin-bottom:2px; }
-.bar.alta { background:var(--alta); } .bar.media { background:var(--media); } .bar.baja { background:var(--baja); }
+.guide { background:var(--card); border:1px solid var(--border); padding:18px 22px 10px; margin-top:6px;
+         box-shadow:0 1px 2px rgba(0,46,91,.06); }
+.guide-title { font-family:var(--serif); font-weight:700; font-size:16px; color:var(--navy); }
+.guide-sub { font-size:12.5px; color:var(--muted); margin:2px 0 14px; }
+.guide-row { border-left:5px solid; padding:10px 14px; margin:0 0 10px; background:var(--bg); }
+.guide-row.alta { border-color:var(--alta); } .guide-row.media { border-color:var(--media); } .guide-row.baja { border-color:var(--baja); }
+.guide-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:3px; }
+.guide-head .lvl { font-weight:700; font-size:14px; letter-spacing:.06em; text-transform:uppercase; }
+.guide-row.alta .lvl { color:var(--alta); } .guide-row.media .lvl { color:var(--media); } .guide-row.baja .lvl { color:var(--baja); }
+.guide-desc { font-size:13px; color:var(--ink); line-height:1.5; }
+kbd { display:inline-flex; align-items:center; justify-content:center; min-width:24px; height:22px; padding:0 6px;
+      font-family:var(--sans); font-size:11.5px; font-weight:700; color:var(--navy); background:#FFFFFF;
+      border:1px solid var(--border); border-bottom-width:2px; }
+.note { display:flex; gap:10px; align-items:flex-start; background:var(--gold-soft); border-left:4px solid var(--gold);
+        color:var(--ink); font-size:12.5px; line-height:1.5; padding:10px 14px; margin-top:12px; }
+.note-icon { font-size:15px; line-height:1.3; }
 
-/* Triaje */
-.progress { margin:2px 0 10px; }
-.progress-text { font-weight:700; font-size:15px; color:var(--panel); }
-.progress-track { height:6px; background:var(--track); margin-top:8px; }
-.progress-bar { height:100%; background:var(--accent); }
+/* ---- Triaje -------------------------------------------------------------- */
+.progress { margin:0 0 14px; }
+.progress-head { display:flex; justify-content:space-between; align-items:baseline; }
+.progress-text { font-size:14px; color:var(--muted); }
+.progress-text strong { font-family:var(--serif); font-size:22px; color:var(--navy); margin-right:2px; }
+.progress-pct { font-size:12.5px; font-weight:600; color:var(--navy); letter-spacing:.04em; }
+.progress-track { height:8px; background:var(--track); margin-top:8px; }
+.progress-bar { height:100%; background:linear-gradient(90deg, var(--gold), #FFC43D); transition:width .3s ease; }
+
 .email-card, .email-card * { color:var(--ink) !important; }
-.email-card { background:var(--card); border:1px solid var(--border); padding:18px 22px; overflow-wrap:anywhere; }
-.email-card .label { font-size:11px; font-weight:700; color:var(--muted) !important; }
-.email-card .subject { font-size:20px; font-weight:700; margin:6px 0 14px; }
-.email-card .body { white-space:pre-wrap; font-size:15px; line-height:1.55; border-top:1px solid var(--border);
-                    padding-top:14px; height:calc(100vh - 460px); min-height:160px; overflow-y:auto; }
+.email-card { background:var(--card); border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,46,91,.08); overflow-wrap:anywhere; }
+.email-head { background:var(--navy); color:#FFFFFF !important; padding:10px 24px; display:flex; justify-content:space-between;
+              align-items:center; font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; font-weight:600; }
+.email-head, .email-head * { color:#DCE6F2 !important; }
+.email-head .tag { color:var(--gold) !important; }
+.email-meta { padding:18px 24px 14px; border-bottom:1px solid var(--border); }
+.email-card .label { font-size:11px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--faint) !important; }
+.email-card .subject { font-family:var(--serif); font-size:23px; font-weight:700; line-height:1.3; margin:6px 0 0; color:var(--navy) !important; }
+.email-card .body { white-space:pre-wrap; font-size:15.5px; line-height:1.7; padding:18px 24px 22px;
+                    height:calc(100vh - 600px); min-height:160px; overflow-y:auto; }
 
-/* Resumen */
-.stats { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:8px 0 18px; }
-.stat { border:1px solid var(--border); border-top:4px solid var(--accent); background:var(--card); padding:12px 18px; }
-.stat .value { font-size:26px; font-weight:700; color:var(--panel) !important; }
-.stat .label { font-size:11px; font-weight:700; color:var(--muted) !important; margin-top:4px; }
-.file-card { border:1px solid var(--border); background:var(--card); padding:14px 18px; }
-.file-card .label { font-size:11px; font-weight:700; color:var(--muted) !important; }
-.file-card .path { font-size:12px; color:var(--ink) !important; margin-top:6px; }
-.complete { color:var(--baja); font-weight:700; font-size:15px; margin:4px 0 14px; }
-.footer { text-align:center; color:var(--muted); font-size:12px; padding:10px 0 10px; }
+/* ---- Resumen ------------------------------------------------------------- */
+.complete { display:flex; gap:12px; align-items:center; background:var(--baja-soft); border-left:4px solid var(--baja);
+            color:var(--baja); font-weight:600; font-size:14px; padding:12px 16px; margin:0 0 18px; }
+.stats { display:grid; grid-template-columns:repeat(2, 1fr); gap:14px; margin:4px 0 16px; }
+.stat { border:1px solid var(--border); border-top:4px solid var(--gold); background:var(--card); padding:16px 20px 14px;
+        box-shadow:0 1px 2px rgba(0,46,91,.06); }
+.stat .value { font-family:var(--serif); font-size:32px; font-weight:700; color:var(--navy) !important; line-height:1.1; }
+.stat .label { font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted) !important; margin-top:8px; }
+.file-card { border:1px solid var(--border); border-left:4px solid var(--navy); background:var(--card); padding:14px 18px; }
+.file-card .label { font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted) !important; }
+.file-card .path { font-size:13px; color:var(--ink) !important; margin-top:6px; line-height:1.5; }
+.file-card code { background:var(--bg); border:1px solid var(--border); padding:1px 6px; font-size:12.5px; color:var(--navy); }
 
-/* Botones (planos, como en la app de escritorio) */
-#btn-start { background:var(--accent) !important; color:var(--panel) !important; font-weight:700; font-size:15px;
-             border:none !important; min-height:44px; max-width:240px; margin:6px auto 0; display:block; }
-#btn-alta, #btn-media, #btn-baja { min-height:52px; font-size:15px; font-weight:700; border:none !important; }
+/* ---- Pie ------------------------------------------------------------------ */
+.footer { display:flex; justify-content:center; align-items:center; gap:14px; flex-wrap:wrap; color:var(--muted);
+          font-size:12px; padding:22px 24px 26px; margin-top:18px; border-top:1px solid var(--border); }
+.footer-brand { font-family:var(--serif); font-weight:700; color:var(--navy); font-size:13px; }
+.footer-sep { width:4px; height:4px; background:var(--gold); display:inline-block; }
+
+/* ---- Botones (planos, esquinas rectas) ----------------------------------- */
+button.lg, button.primary, button.secondary { transition:filter .15s ease, transform .05s ease; font-family:var(--sans) !important; }
+button:active { transform:translateY(1px); }
+#btn-start { background:var(--gold) !important; color:var(--navy-deep) !important; font-weight:700; font-size:15px;
+             letter-spacing:.02em; border:none !important; min-height:50px; max-width:320px; margin:10px auto 0; display:block;
+             box-shadow:0 2px 0 #C98A00; }
+#btn-start:hover { filter:brightness(1.05); }
+#btn-alta, #btn-media, #btn-baja { min-height:58px; font-size:16px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+             border:none !important; display:flex; align-items:center; justify-content:center; gap:12px; }
+#btn-alta::after, #btn-media::after, #btn-baja::after { display:inline-flex; align-items:center; justify-content:center;
+             min-width:24px; height:22px; padding:0 6px; font-size:11.5px; font-weight:700; border:1px solid rgba(255,255,255,.55);
+             background:rgba(255,255,255,.14); }
+#btn-alta::after  { content:"A"; } #btn-media::after { content:"M"; } #btn-baja::after  { content:"B"; }
 #btn-alta  { background:var(--alta) !important; color:#FFFFFF !important; }
-#btn-media { background:var(--media) !important; color:var(--panel) !important; }
+#btn-media { background:var(--media) !important; color:#FFFFFF !important; }
 #btn-baja  { background:var(--baja) !important; color:#FFFFFF !important; }
-#btn-skip  { background:var(--neutral) !important; color:var(--neutral-text) !important; font-weight:700; border:none !important;
-             max-width:170px; }
-#btn-quit, #btn-exit { background:var(--panel) !important; color:#F0F4F8 !important; font-weight:700; border:none !important; }
-#btn-quit { max-width:220px; margin-left:auto; }
-#btn-exit { max-width:120px; margin-left:auto; }
-#btn-continue { background:var(--accent) !important; color:var(--panel) !important; font-weight:700; border:none !important;
-                max-width:260px; }
+#btn-alta:hover, #btn-media:hover, #btn-baja:hover { filter:brightness(1.08); }
+#btn-skip  { background:var(--card) !important; color:var(--muted) !important; font-weight:600;
+             border:1.5px solid var(--border) !important; max-width:240px; min-height:44px; white-space:nowrap; }
+#btn-skip:hover { border-color:var(--navy) !important; color:var(--navy) !important; }
+#btn-quit, #btn-exit { background:var(--navy) !important; color:#FFFFFF !important; font-weight:600; border:none !important; min-height:44px; }
+#btn-quit { max-width:250px; margin-left:auto; }
+#btn-exit { max-width:150px; margin-left:auto; }
+#btn-continue { background:var(--gold) !important; color:var(--navy-deep) !important; font-weight:700; border:none !important;
+                max-width:300px; min-height:44px; box-shadow:0 2px 0 #C98A00; }
 .actions-row { justify-content:space-between; margin-top:16px !important; }
-.consent-box .prose, .consent-box > div { max-height:none; overflow:visible; }
+.decision-row { gap:12px !important; margin-top:16px !important; }
 """
 
 # Al cargar: fuerza el tema claro (interfaz blanca aunque el navegador esté en modo oscuro) y activa los
@@ -373,9 +490,12 @@ def render_email(state):
     state["start"] = time.perf_counter()   # el cronómetro arranca cuando el correo queda visible
     subject = email["asunto"] or "(sin asunto)"
     body = email["cuerpo"] or "(sin cuerpo)"
-    html = (f"<div class='email-card'><div class='label'>ASUNTO</div>"
-            f"<div class='subject'>{escape(subject)}</div>"
-            f"<div class='label'>MENSAJE</div><div class='body'>{escape(body)}</div></div>")
+    html = (f"<div class='email-card'>"
+            f"<div class='email-head'><span>Correo entrante</span>"
+            f"<span class='tag'>Orden de llegada nº {email['orden_llegada']}</span></div>"
+            f"<div class='email-meta'><div class='label'>Asunto</div>"
+            f"<div class='subject'>{escape(subject)}</div></div>"
+            f"<div class='body'>{escape(body)}</div></div>")
     return html, progress_html(pos, total)
 
 
@@ -404,28 +524,28 @@ def summary_html(state, already_complete=False):
         counts = {k: sum(1 for r in records if r["etiqueta_humana"] == k) for k in ("Alta", "Media", "Baja")}
         stats.append(("Mediana por correo", f"{median:.2f} s"))
         stats.append(("Distribución (Alta / Media / Baja)", f"{counts['Alta']} / {counts['Media']} / {counts['Baja']}"))
-    cards = "".join(f"<div class='stat'><div class='value'>{v}</div><div class='label'>{k.upper()}</div></div>"
+    cards = "".join(f"<div class='stat'><div class='value'>{v}</div><div class='label'>{k}</div></div>"
                     for k, v in stats)
-    head = (f"<div class='complete'>✓&nbsp; El anotador «{escape(state['display'])}» ya clasificó los {total} correos.</div>"
+    head = (f"<div class='complete'>✓&nbsp; El anotador «{escape(state['display'])}» ya clasificó los {total} correos. ¡Gracias por su participación!</div>"
             if already_complete or done >= total else "")
     return (f"{head}<div class='stats'>{cards}</div>"
-            f"<div class='file-card'><div class='label'>ARCHIVO DEL ANOTADOR</div>"
-            f"<div class='path'>manual/{state['slug']}.csv &nbsp;·&nbsp; se sincroniza con el repositorio de datos "
-            f"en menos de un minuto</div></div>")
+            f"<div class='file-card'><div class='label'>Archivo del anotador</div>"
+            f"<div class='path'><code>manual/{state['slug']}.csv</code> &nbsp;·&nbsp; se sincroniza con el repositorio de datos "
+            f"en menos de un minuto; sus decisiones quedan guardadas aunque cierre esta ventana.</div></div>")
 
 
 def show(screen, state, email="", progress="", summary=""):
     """Arma la tupla de salidas: estado, cabecera, visibilidad de las pantallas y contenidos."""
     if screen == 1:
         header = header_html("Triaje manual de correos",
-                             "Clasificación humana por nivel de urgencia · comparativa de tiempos")
+                             "Clasificación humana por nivel de urgencia · comparativa de tiempos", 1)
         continue_lbl = gr.update()
     elif screen == 2:
         header = header_html("Triaje en curso",
-                             f"Anotador: {state['display']}  ·  clasificación a ciegas en orden de llegada")
+                             f"Anotador: {state['display']}  ·  clasificación a ciegas en orden de llegada", 2)
         continue_lbl = gr.update()
     else:
-        header = header_html("Sesión finalizada", f"Anotador: {state['display']}")
+        header = header_html("Sesión finalizada", f"Anotador: {state['display']}", 3)
         remaining = len(LOT) - len(load_done(state["slug"]))
         continue_lbl = gr.update(visible=remaining > 0, value=f"↻  Continuar ({remaining} pendientes)")
     return (state, header,
@@ -437,8 +557,8 @@ def preview_name(raw):
     """Retroalimentación en vivo del identificador: cómo se guardará el archivo."""
     slug = slugify(format_display_name(raw or ""))
     if slug:
-        return f"<div class='ok'>✔&nbsp; Se guardará como: &nbsp;{slug}.csv</div>"
-    return "<div class='hint'>Escribe el identificador del anotador para habilitar el triaje.</div>"
+        return f"<div class='ok'>✔&nbsp; Sus decisiones se guardarán en <code>{slug}.csv</code></div>"
+    return "<div class='hint'>Escriba su nombre o un identificador: con él podrá reanudar la sesión desde cualquier dispositivo.</div>"
 
 
 def start_session(name, consent):
@@ -498,22 +618,26 @@ def restart():
 # --- Interfaz -----------------------------------------------------------------
 THEME = gr.themes.Soft(primary_hue="blue", radius_size=gr.themes.sizes.radius_none)
 
-with gr.Blocks(title="Triaje manual de correos", css=CSS, js=SHORTCUTS_JS, theme=THEME) as demo:
+with gr.Blocks(title="Triaje manual de correos", css=CSS, js=SHORTCUTS_JS, head=HEAD, theme=THEME) as demo:
     state = gr.State(None)
     header = gr.HTML(header_html("Triaje manual de correos",
-                                 "Clasificación humana por nivel de urgencia · comparativa de tiempos"))
+                                 "Clasificación humana por nivel de urgencia · comparativa de tiempos", 1))
 
     # Pantalla 1 · bienvenida: consentimiento (izquierda), identificador y guía (derecha).
     # Dos columnas anchas para que toda la pantalla quepa en el alto de un monitor sin desplazamiento.
     with gr.Column(visible=True, elem_classes=["welcome"]) as welcome:
         with gr.Row(equal_height=False):
             with gr.Column(scale=1, min_width=360):
-                gr.HTML("<div class='section-label'>CONSENTIMIENTO INFORMADO</div>")
+                gr.HTML("<div class='section-label'>Consentimiento informado"
+                        "<small>Lea el documento completo y acepte para continuar.</small></div>")
                 gr.Markdown(CONSENT_MD, elem_classes=["consent-box"])
-                consent = gr.Checkbox(label="He leído y acepto el consentimiento informado y participo de forma libre y voluntaria.")
+                consent = gr.Checkbox(label="He leído y acepto el consentimiento informado y participo de forma libre y voluntaria.",
+                                      elem_classes=["consent-check"])
             with gr.Column(scale=1, min_width=360):
-                gr.HTML("<div class='section-label'>IDENTIFICADOR DEL ANOTADOR</div>")
-                name = gr.Textbox(show_label=False, placeholder="Nombre o identificador (p. ej. Andrés Rubiano)")
+                gr.HTML("<div class='section-label'>Identificador del anotador"
+                        "<small>Con él se guarda y se reanuda su sesión.</small></div>")
+                name = gr.Textbox(show_label=False, placeholder="Nombre o identificador (p. ej. Andrés Rubiano)",
+                                  elem_id="name-box")
                 name_hint = gr.HTML(preview_name(""))
                 gr.HTML(GUIDE_HTML)
         start_btn = gr.Button("Comenzar triaje  →", elem_id="btn-start")
@@ -522,13 +646,13 @@ with gr.Blocks(title="Triaje manual de correos", css=CSS, js=SHORTCUTS_JS, theme
     with gr.Column(visible=False, elem_classes=["wide"]) as triage:
         progress = gr.HTML()
         email_html = gr.HTML()
-        with gr.Row():
-            alta_btn = gr.Button("🔴  Alta  (A)", elem_id="btn-alta")
-            media_btn = gr.Button("🟡  Media  (M)", elem_id="btn-media")
-            baja_btn = gr.Button("🟢  Baja  (B)", elem_id="btn-baja")
+        with gr.Row(elem_classes=["decision-row"]):
+            alta_btn = gr.Button("Alta", elem_id="btn-alta")
+            media_btn = gr.Button("Media", elem_id="btn-media")
+            baja_btn = gr.Button("Baja", elem_id="btn-baja")
         with gr.Row(elem_classes=["actions-row"]):
-            skip_btn = gr.Button("⏭  Saltar  (S)", elem_id="btn-skip")
-            quit_btn = gr.Button("💾  Guardar y salir  (Q)", elem_id="btn-quit")
+            skip_btn = gr.Button("Saltar este correo  (S)", elem_id="btn-skip")
+            quit_btn = gr.Button("Guardar y salir  (Q)", elem_id="btn-quit")
 
     # Pantalla 3 · resumen (columna central compacta)
     with gr.Column(visible=False, elem_classes=["narrow"]) as summary:

@@ -300,18 +300,36 @@ footer { display:none !important; }
 .gap { gap:0 !important; }
 .block, .form { background:transparent !important; border:none !important; box-shadow:none !important; }
 
+/* ---- Ajuste al alto de la ventana ---------------------------------------
+   Toda la cadena de contenedores de Gradio es una columna flex: se fija la raíz a 100vh y se deja que la
+   pantalla activa crezca; dentro de ella, solo el consentimiento y el cuerpo del correo se desplazan. */
+html, body { height:100%; overflow:hidden; }
+gradio-app, .gradio-container { height:100vh !important; min-height:100vh !important; max-height:100vh !important;
+                                overflow:hidden !important; }
+.gradio-container > main, main.app, .gradio-container .main, .gradio-container .main > .wrap,
+.gradio-container .contain, .gradio-container .contain > .column { flex:1 1 auto !important; min-height:0 !important;
+                                                                   height:auto !important; }
+#hdr, #ftr { flex:none !important; }                       /* cabecera y pie nunca se encogen */
+.welcome, .wide, .narrow { flex:1 1 0px !important; min-height:0 !important; }
+.welcome > .row { flex:1 1 0px !important; min-height:0 !important; align-items:stretch !important;
+                  flex-wrap:nowrap !important; }   /* con wrap, la fila crecería hasta el contenido más alto */
+.welcome > .row > .column { min-height:0 !important; overflow:hidden; flex-wrap:nowrap !important; }
+.welcome > .row > .column > .block:not(.consent-box) { flex:none !important; overflow:visible !important; }  /* solo cede el consentimiento */
+#email-box, #email-box .html-container, #email-box .prose { flex:1 1 auto !important; min-height:0 !important;
+       display:flex !important; flex-direction:column !important; max-height:none !important; }
+
 /* ---- Cabecera institucional ------------------------------------------------ */
 .header { background:linear-gradient(135deg, var(--navy-deep) 0%, var(--navy) 60%, var(--navy-soft) 100%);
           color:#F0F4F8; border-bottom:4px solid var(--gold); }
-.header-top { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:14px 40px 12px;
+.header-top { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:10px 40px 9px;
               border-bottom:1px solid rgba(255,255,255,.12); }
 .header-logo .logo { height:52px; object-fit:contain; display:block; }
 .header-meta { text-align:right; }
 .header .program { font-family:var(--serif); font-weight:600; font-size:15px; color:#FFFFFF; letter-spacing:.01em; }
 .header .faculty { font-size:11.5px; color:#A8BDD3; margin-top:2px; }
-.header-main { display:flex; align-items:center; justify-content:space-between; gap:32px; padding:18px 40px 20px; }
+.header-main { display:flex; align-items:center; justify-content:space-between; gap:32px; padding:14px 40px 16px; }
 .header .eyebrow { font-size:11px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); }
-.header .title { font-family:var(--serif); font-size:30px; font-weight:700; color:#FFFFFF; margin-top:4px; line-height:1.15; }
+.header .title { font-family:var(--serif); font-size:26px; font-weight:700; color:#FFFFFF; margin-top:4px; line-height:1.15; }
 .header .subtitle { font-size:13px; color:#A8BDD3; margin-top:6px; }
 
 .steps { display:flex; align-items:center; gap:10px; flex:none; }
@@ -338,20 +356,27 @@ footer { display:none !important; }
 .ok code { background:var(--baja-soft); color:var(--baja); padding:1px 6px; font-size:12px; }
 
 /* Consentimiento: hoja blanca con sombra suave, como un documento */
-.consent-box { height:calc(100vh - 400px) !important; max-height:calc(100vh - 400px) !important; min-height:220px;
-               overflow:hidden !important; border:1px solid var(--border); border-top:3px solid var(--navy); background:var(--card);
-               padding:0 !important; box-shadow:0 1px 2px rgba(0,46,91,.06); }
+/* Gradio aplica la clase tanto al bloque exterior como al <div class="prose"> interior; el texto vive en <span class="md">.
+   Toda la cadena es una columna flex y SOLO el <span class="md"> se desplaza. */
+.block.consent-box { flex:1 1 0px !important; height:auto !important; max-height:none !important; min-height:0 !important;
+               overflow:hidden !important; border:1px solid var(--border) !important; border-top:3px solid var(--navy) !important;
+               background:var(--card) !important; padding:0 !important; box-shadow:0 1px 2px rgba(0,46,91,.06) !important;
+               display:flex !important; flex-direction:column !important; }
+.block.consent-box > div:not(.wrap), .prose.consent-box { flex:1 1 0px !important; min-height:0 !important; height:auto !important;
+               max-height:none !important; display:flex !important; flex-direction:column !important; padding:0 !important;
+               overflow:hidden !important; }
+.consent-box span.md { flex:1 1 0px !important; min-height:0 !important; height:auto !important; max-height:none !important;
+               display:block !important; overflow-y:auto !important; padding:8px 22px 14px !important; box-sizing:border-box; }
 .consent-box * { color:var(--ink) !important; font-size:13.5px; line-height:1.6; }
 .consent-box h3 { font-family:var(--serif) !important; font-size:17px !important; color:var(--navy) !important;
                   margin:12px 0 6px !important; }
 .consent-box strong { color:var(--navy) !important; }
-/* Solo el texto se desplaza: el bloque exterior queda fijo para evitar la doble barra */
-.consent-box .prose { height:calc(100vh - 403px) !important; max-height:none !important; overflow-y:auto !important;
-                      padding:8px 22px 14px !important; box-sizing:border-box; }
-.consent-check label { font-size:13.5px !important; color:var(--ink) !important; font-weight:500 !important; }
+.consent-check { flex:none !important; }
+.consent-check label { font-size:13.5px !important; color:var(--ink) !important; font-weight:500 !important; line-height:1.3; }
+/* Solo se cambia el color de fondo: la imagen del chulito la pone Gradio (background-image) y debe conservarse */
 .consent-check input[type=checkbox] { accent-color:var(--navy); width:18px !important; height:18px !important;
-       border:1.5px solid var(--navy) !important; background:#FFFFFF; }
-.consent-check input[type=checkbox]:checked { background:var(--navy) !important; border-color:var(--navy) !important; }
+       border:1.5px solid var(--navy) !important; background-color:#FFFFFF; flex:none; }
+.consent-check input[type=checkbox]:checked { background-color:var(--navy) !important; border-color:var(--navy) !important; }
 
 /* Identificador */
 #name-box textarea, #name-box input { font-size:15px !important; border:1.5px solid var(--border) !important;
@@ -386,7 +411,8 @@ kbd { display:inline-flex; align-items:center; justify-content:center; min-width
 .progress-bar { height:100%; background:linear-gradient(90deg, var(--gold), #FFC43D); transition:width .3s ease; }
 
 .email-card, .email-card * { color:var(--ink) !important; }
-.email-card { background:var(--card); border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,46,91,.08); overflow-wrap:anywhere; }
+.email-card { background:var(--card); border:1px solid var(--border); box-shadow:0 2px 8px rgba(0,46,91,.08); overflow-wrap:anywhere;
+              display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
 .email-head { background:var(--navy); color:#FFFFFF !important; padding:10px 24px; display:flex; justify-content:space-between;
               align-items:center; font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; font-weight:600; }
 .email-head, .email-head * { color:#DCE6F2 !important; }
@@ -395,7 +421,7 @@ kbd { display:inline-flex; align-items:center; justify-content:center; min-width
 .email-card .label { font-size:11px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--faint) !important; }
 .email-card .subject { font-family:var(--serif); font-size:23px; font-weight:700; line-height:1.3; margin:6px 0 0; color:var(--navy) !important; }
 .email-card .body { white-space:pre-wrap; font-size:15.5px; line-height:1.7; padding:18px 24px 22px;
-                    height:calc(100vh - 600px); min-height:160px; overflow-y:auto; }
+                    flex:1 1 auto; min-height:0; overflow-y:auto; }
 
 /* ---- Resumen ------------------------------------------------------------- */
 .complete { display:flex; gap:12px; align-items:center; background:var(--baja-soft); border-left:4px solid var(--baja);
@@ -412,7 +438,7 @@ kbd { display:inline-flex; align-items:center; justify-content:center; min-width
 
 /* ---- Pie ------------------------------------------------------------------ */
 .footer { display:flex; justify-content:center; align-items:center; gap:14px; flex-wrap:wrap; color:var(--muted);
-          font-size:12px; padding:22px 24px 26px; margin-top:18px; border-top:1px solid var(--border); }
+          font-size:12px; padding:12px 24px 14px; margin-top:10px; border-top:1px solid var(--border); flex:none; }
 .footer-brand { font-family:var(--serif); font-weight:700; color:var(--navy); font-size:13px; }
 .footer-sep { width:4px; height:4px; background:var(--gold); display:inline-block; }
 
@@ -443,6 +469,36 @@ button:active { transform:translateY(1px); }
                 max-width:300px; min-height:44px; box-shadow:0 2px 0 #C98A00; }
 .actions-row { justify-content:space-between; margin-top:16px !important; }
 .decision-row { gap:12px !important; margin-top:16px !important; }
+
+/* ---- Alturas de ventana reducidas (van al final para prevalecer sobre las reglas anteriores) ------------- */
+/* Alto medio (portátiles de 768 px): versión compacta de la bienvenida para que siga cabiendo sin desplazamiento */
+@media (max-height: 860px) {
+  .welcome { padding-top:14px !important; }
+  .section-label { font-size:16px; margin-bottom:6px; }
+  .section-label small { display:none !important; }
+  .hint, .ok { margin:6px 0 6px; }
+  .consent-check label { font-size:12.5px !important; }
+  .guide { padding:12px 18px 4px; }
+  .guide-sub { display:none !important; }
+  .guide-title { margin-bottom:8px; }
+  .guide-row { padding:7px 12px; margin-bottom:7px; }
+  .guide-desc { font-size:12.5px; }
+  .note { display:none !important; }
+  #btn-start { min-height:44px; margin-top:6px; }
+  .header-top { padding:8px 40px 7px; }
+  .header-main { padding:10px 40px 12px; }
+  .header .title { font-size:23px; }
+  .email-meta { padding:12px 24px 10px; }
+  .email-card .subject { font-size:20px; }
+}
+/* Muy bajas: se vuelve al desplazamiento normal de la página */
+@media (max-height: 700px) {
+  html, body { overflow:auto; }
+  gradio-app, .gradio-container { height:auto !important; max-height:none !important; overflow:visible !important; }
+  .block.consent-box { flex:none !important; height:380px !important; }
+  .email-card { flex:none !important; }
+  .email-card .body { flex:none !important; height:260px !important; }
+}
 """
 
 # Al cargar: fuerza el tema claro (interfaz blanca aunque el navegador esté en modo oscuro) y activa los
@@ -621,7 +677,8 @@ THEME = gr.themes.Soft(primary_hue="blue", radius_size=gr.themes.sizes.radius_no
 with gr.Blocks(title="Triaje manual de correos", css=CSS, js=SHORTCUTS_JS, head=HEAD, theme=THEME) as demo:
     state = gr.State(None)
     header = gr.HTML(header_html("Triaje manual de correos",
-                                 "Clasificación humana por nivel de urgencia · comparativa de tiempos", 1))
+                                 "Clasificación humana por nivel de urgencia · comparativa de tiempos", 1),
+                     elem_id="hdr")
 
     # Pantalla 1 · bienvenida: consentimiento (izquierda), identificador y guía (derecha).
     # Dos columnas anchas para que toda la pantalla quepa en el alto de un monitor sin desplazamiento.
@@ -645,7 +702,7 @@ with gr.Blocks(title="Triaje manual de correos", css=CSS, js=SHORTCUTS_JS, head=
     # Pantalla 2 · triaje (ancho completo)
     with gr.Column(visible=False, elem_classes=["wide"]) as triage:
         progress = gr.HTML()
-        email_html = gr.HTML()
+        email_html = gr.HTML(elem_id="email-box")
         with gr.Row(elem_classes=["decision-row"]):
             alta_btn = gr.Button("Alta", elem_id="btn-alta")
             media_btn = gr.Button("Media", elem_id="btn-media")
@@ -661,7 +718,7 @@ with gr.Blocks(title="Triaje manual de correos", css=CSS, js=SHORTCUTS_JS, head=
             continue_btn = gr.Button("↻  Continuar", elem_id="btn-continue")
             exit_btn = gr.Button("Salir", elem_id="btn-exit")
 
-    gr.HTML(FOOTER_HTML)
+    gr.HTML(FOOTER_HTML, elem_id="ftr")
 
     outputs = [state, header, welcome, triage, summary, email_html, progress, summary_text, continue_btn]
     name.change(preview_name, [name], [name_hint])

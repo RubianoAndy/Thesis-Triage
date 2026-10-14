@@ -84,6 +84,8 @@ Atajos de teclado: **A** (Alta), **M** (Media), **B** (Baja), **S** (Saltar) y *
 
 **Identidad visual.** La plataforma sigue la identidad de la Universidad de La Salle: azul institucional (`#002E5B`) y dorado (`#F2A900`) sobre fondo claro, tipografía *Source Serif 4* para títulos e *Inter* para la lectura, y esquinas rectas en todos los elementos (sin bordes redondeados).
 
+**Ajuste a la pantalla.** Cada pantalla ocupa exactamente el alto de la ventana, sin desplazamiento de página: solo se desplazan el texto del consentimiento y el cuerpo del correo. En pantallas de alto medio (≤ 860 px, p. ej. portátiles de 1366 × 768) la bienvenida pasa a una versión compacta y, por debajo de 700 px, se vuelve al desplazamiento normal.
+
 <div align="center">
     <img src="docs/01-bienvenida.png" width="720" alt="Pantalla de bienvenida: consentimiento informado, identificador y guía de niveles"><br>
     <em>1 · Bienvenida</em><br><br>

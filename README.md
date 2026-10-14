@@ -4,6 +4,8 @@
 
 # Sistema de Clasificación Automática de Correos Electrónicos por Nivel de Urgencia en el Sector de la Energía usando Aprendizaje Profundo — *Plataforma de Triaje*
 
+> 🌐 **Aplicación en producción:** https://thesis-triage.onrender.com
+
 ## 📋 Información General
 
 <div align="center">

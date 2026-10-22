@@ -29,12 +29,12 @@
 
 ## 🎯 Descripción del Proyecto
 
-La validación en **entorno operativo simulado** (objetivo 4) mide cuánto tiempo ahorra el modelo seleccionado frente al triaje manual sobre un lote de correos inédito. Para ello hace falta una **referencia humana**: personas que clasifiquen el mismo lote, a ciegas y cronometradas. Esta plataforma reemplaza, para la web, la aplicación de escritorio en Tkinter del proyecto ([`3-manual_triage.py`](https://github.com/RubianoAndy/Thesis-Project/blob/main/src/simulation/3-manual_triage.py)), conservando **la misma lógica** y añadiendo lo necesario para que varios anotadores participen desde cualquier dispositivo y los resultados lleguen solos al cuaderno de Colab.
+La validación en **entorno operativo simulado** (objetivo 4) mide cuánto tiempo ahorra el modelo seleccionado frente al triaje manual sobre un lote inédito de PQRs. Para ello hace falta una **referencia humana**: personas que clasifiquen el mismo lote, a ciegas y cronometradas. Esta plataforma reemplaza, para la web, la aplicación de escritorio en Tkinter del proyecto ([`3-manual_triage.py`](https://github.com/RubianoAndy/Thesis-Project/blob/main/src/simulation/3-manual_triage.py)), conservando **la misma lógica** y añadiendo lo necesario para que varios anotadores participen desde cualquier dispositivo y los resultados lleguen solos al cuaderno de Colab.
 
 ### Qué hace
 
-- Presenta cada correo **a ciegas** (sin la predicción del modelo, la etiqueta de oro, la categoría ni el subconjunto) y **en orden de llegada** (FIFO).
-- **Cronometra** cada decisión desde que el correo queda visible hasta que el anotador elige Alta, Media o Baja.
+- Presenta cada PQR **a ciegas** (sin la predicción del modelo, la etiqueta de oro, la categoría ni el subconjunto) y **en orden de llegada** (FIFO).
+- **Cronometra** cada decisión desde que la PQR queda visible hasta que el anotador elige Alta, Media o Baja.
 - Es **multi-anotador** (un archivo por persona) y **reanudable** desde cualquier dispositivo con el mismo identificador.
 - Recoge la aceptación del **consentimiento informado** antes de empezar, con el mismo contenido del formato del apéndice de la tesis.
 - Al terminar el lote aplica el **cuestionario de uso y apropiación de la interfaz** de la metodología (sección 6.6.4): la Escala de Usabilidad del Sistema (SUS, 10 afirmaciones), 9 ítems adaptados de TAM (utilidad percibida, facilidad de uso percibida e intención de uso) y 2 preguntas abiertas, antes de que el anotador conozca cualquier resultado.
@@ -82,9 +82,9 @@ Cuaderno de Colab (Thesis-Project)            Hugging Face (dataset privado)    
 | Pantalla | Qué muestra | Equivalente en la versión de escritorio |
 |---|---|---|
 | **1. Bienvenida** | Consentimiento informado, casilla de aceptación, identificador del anotador y guía de los tres niveles de urgencia | `_showWelcome` |
-| **2. Triaje** | Progreso (`Correo n de N`), tarjeta con asunto y mensaje, botones **Alta / Media / Baja**, **Saltar** y **Guardar y salir** | `_showTriage` + `_decide` |
+| **2. Triaje** | Progreso (`PQR n de N`), tarjeta con asunto y mensaje, botones **Alta / Media / Baja**, **Saltar esta PQR** y **Guardar y salir** | `_showTriage` + `_decide` |
 | **3. Cuestionario** | Al completar el lote: instrucciones y escala de 1 a 5, **Parte A** (10 afirmaciones del SUS), **Parte B** (9 ítems de apropiación agrupados por dimensión), **Parte C** (2 preguntas abiertas), botones **Enviar cuestionario** y **Responder más tarde** | — (nueva) |
-| **4. Resumen** | Clasificados en la sesión, progreso acumulado, tiempo total y promedio por correo, estado del cuestionario, botones **Continuar** / **Responder cuestionario** y **Salir** | `_showSummary` |
+| **4. Resumen** | Clasificados en la sesión, progreso acumulado, tiempo total y promedio por PQR, estado del cuestionario, botones **Continuar** / **Responder cuestionario** y **Salir** | `_showSummary` |
 
 Atajos de teclado: **A** (Alta), **M** (Media), **B** (Baja), **S** (Saltar) y **Q** (Guardar y salir), activos solo cuando no se está escribiendo en un campo de texto. La interfaz usa siempre el tema claro, aunque el navegador del anotador esté en modo oscuro, y ocupa todo el ancho de la pantalla sin desbordes. Un indicador de pasos (1 · Consentimiento, 2 · Triaje, 3 · Cuestionario, 4 · Resumen) en la cabecera muestra en qué punto está el anotador.
 
@@ -92,12 +92,12 @@ Atajos de teclado: **A** (Alta), **M** (Media), **B** (Baja), **S** (Saltar) y *
 
 **Identidad visual.** La plataforma sigue la identidad de la Universidad de La Salle: azul institucional (`#002E5B`) y dorado (`#F2A900`) sobre fondo claro, tipografía *Source Serif 4* para títulos e *Inter* para la lectura, y esquinas rectas en todos los elementos (sin bordes redondeados).
 
-**Ajuste a la pantalla.** Cada pantalla ocupa exactamente el alto de la ventana, sin desplazamiento de página: solo se desplazan el texto del consentimiento, el cuerpo del correo y el formulario del cuestionario. En pantallas de alto medio (≤ 860 px, p. ej. portátiles de 1366 × 768) la bienvenida pasa a una versión compacta y, por debajo de 700 px, se vuelve al desplazamiento normal.
+**Ajuste a la pantalla.** Cada pantalla ocupa exactamente el alto de la ventana, sin desplazamiento de página: solo se desplazan el texto del consentimiento, el cuerpo de la PQR y el formulario del cuestionario. En pantallas de alto medio (≤ 860 px, p. ej. portátiles de 1366 × 768) la bienvenida pasa a una versión compacta y, por debajo de 700 px, se vuelve al desplazamiento normal.
 
 <div align="center">
     <img src="docs/01-bienvenida.png" width="720" alt="Pantalla de bienvenida: consentimiento informado, identificador y guía de niveles"><br>
     <em>1 · Bienvenida</em><br><br>
-    <img src="docs/02-triaje.png" width="720" alt="Pantalla de triaje: correo a ciegas con botones Alta, Media y Baja"><br>
+    <img src="docs/02-triaje.png" width="720" alt="Pantalla de triaje: PQR a ciegas con botones Alta, Media y Baja"><br>
     <em>2 · Triaje</em><br><br>
     <img src="docs/03-cuestionario.png" width="720" alt="Pantalla del cuestionario de uso y apropiación: escala de 1 a 5, SUS, ítems de apropiación y preguntas abiertas"><br>
     <em>3 · Cuestionario</em><br><br>
@@ -121,7 +121,7 @@ Atajos de teclado: **A** (Alta), **M** (Media), **B** (Baja), **S** (Saltar) y *
 - **Sincronización:** un `CommitScheduler` de `huggingface_hub` sube la carpeta `data/` al dataset privado **cada minuto**; al iniciar sesión se recupera el archivo del anotador si ya existe en el repositorio, lo que permite reanudar desde otro dispositivo o tras un reinicio del servicio.
 - **Consentimiento informado:** no se puede comenzar sin aceptarlo; la aceptación queda en `data/consent/<anotador>.json` con fecha y hora. El texto reproduce el formato de consentimiento del apéndice de la tesis (objetivo del estudio, naturaleza sintética de las PQRs, datos que se registran, incluido el cuestionario, uso académico y seudonimizado, voluntariedad y retiro), en conformidad con la **Ley 1581 de 2012** de Protección de Datos Personales de Colombia.
 - **Cuestionario:** las respuestas se guardan una sola vez en `data/questionnaire/<anotador>.json` bajo el mismo identificador de las decisiones, con fecha y hora, las 10 respuestas del SUS (claves `1`–`10`), las 9 del cuestionario de apropiación (claves `UP1`–`IU3`), las 2 abiertas (`mejoras`, `desconfianza`), el puntaje SUS de 0 a 100 (impares: respuesta − 1; pares: 5 − respuesta; suma × 2,5) y el promedio de cada dimensión. Al iniciar sesión se recupera del repositorio si ya existe, para no volver a pedirlo.
-- **Cronómetro:** se mide en el servidor entre la presentación del correo y el clic de decisión; incluye la latencia de red de cada clic, despreciable frente a decisiones humanas de varios segundos.
+- **Cronómetro:** se mide en el servidor entre la presentación de la PQR y el clic de decisión; incluye la latencia de red de cada clic, despreciable frente a decisiones humanas de varios segundos.
 - **Token en el servidor:** el token de escritura de Hugging Face solo existe como variable de entorno del servicio; nunca viaja al navegador del anotador.
 
 ---
@@ -153,7 +153,7 @@ Atajos de teclado: **A** (Alta), **M** (Media), **B** (Baja), **S** (Saltar) y *
 3. **Cuenta en Render:** entrar a [render.com](https://render.com) con la cuenta de GitHub y autorizar el acceso al repositorio `Thesis-Triage`.
 4. **Servicio:** *New → Blueprint*, elegir `Thesis-Triage`; Render lee [`render.yaml`](render.yaml) y pide el valor de `HF_TOKEN`. Confirmar con *Apply*. (Alternativa manual: *New → Web Service*, runtime Python, *Build Command* `pip install -r requirements.txt`, *Start Command* `python app.py`, plan Free, y las variables de la tabla anterior.)
 5. **Arranque:** el primer despliegue tarda dos o tres minutos. En **Logs** debe aparecer `Running on local URL: http://0.0.0.0:10000`. Si aparece `Falta el secreto HF_TOKEN` o un error 404 de `simulation.csv`, revisar los pasos 2 y 1.
-6. **Prueba:** abrir la URL `https://thesis-triage.onrender.com` (o la que asigne Render), aceptar el consentimiento, clasificar dos o tres correos con un identificador de prueba y verificar, un minuto después, que `manual/` y `consent/` aparecen en el dataset (y `questionnaire/` si se completa el lote y se envía el cuestionario). Borrar luego esos archivos de prueba.
+6. **Prueba:** abrir la URL `https://thesis-triage.onrender.com` (o la que asigne Render), aceptar el consentimiento, clasificar dos o tres PQRs con un identificador de prueba y verificar, un minuto después, que `manual/` y `consent/` aparecen en el dataset (y `questionnaire/` si se completa el lote y se envía el cuestionario). Borrar luego esos archivos de prueba.
 7. **Anotadores:** compartir la URL; cada persona acepta el consentimiento, se identifica, clasifica y, al terminar el lote, responde el cuestionario. Puede cerrar y volver después con el mismo identificador. Si el servicio estaba dormido, la primera carga tarda hasta un minuto.
 
 Cada `git push` a `main` vuelve a desplegar el servicio automáticamente.

@@ -3,7 +3,7 @@
 Plataforma web de triaje manual cronometrado (Gradio · desplegada en Render)
 =============================================================================
 Versión web de `src/simulation/3-manual_triage.py`: presenta el MISMO lote de
-correos que procesó el modelo, A CIEGAS (sin predicción del modelo ni etiqueta
+PQRs que procesó el modelo, A CIEGAS (sin predicción del modelo ni etiqueta
 de oro), en ORDEN DE LLEGADA (FIFO), y cronometra el tiempo que tarda la
 persona en decidir el nivel de urgencia de cada mensaje.
 
@@ -349,7 +349,7 @@ def header_html(title, subtitle, step=1):
 GUIDE_HTML = """
 <div class="guide">
   <div class="guide-title">Niveles de urgencia</div>
-  <div class="guide-sub">Clasifique cada correo según el impacto que describe.</div>
+  <div class="guide-sub">Clasifique cada PQR según el impacto que describe.</div>
   <div class="guide-row alta"><div class="guide-head"><span class="lvl">Alta</span><kbd>A</kbd></div>
     <div class="guide-desc">Riesgo a personas o infraestructura, corte total, emergencia que requiere atención inmediata.</div></div>
   <div class="guide-row media"><div class="guide-head"><span class="lvl">Media</span><kbd>M</kbd></div>
@@ -357,8 +357,8 @@ GUIDE_HTML = """
   <div class="guide-row baja"><div class="guide-head"><span class="lvl">Baja</span><kbd>B</kbd></div>
     <div class="guide-desc">Consulta, trámite administrativo o solicitud sin afectación del servicio.</div></div>
 </div>
-<div class="note"><span class="note-icon">⏱</span> El tiempo se cronometra desde que aparece cada correo hasta su decisión.
-  Los correos se presentan a ciegas y en orden de llegada; puede cerrar y reanudar después con el mismo identificador.</div>
+<div class="note"><span class="note-icon">⏱</span> El tiempo se cronometra desde que aparece cada PQR hasta su decisión.
+  Las PQRs se presentan a ciegas y en orden de llegada; puede cerrar y reanudar después con el mismo identificador.</div>
 """
 
 FOOTER_HTML = ("<div class='footer'><span class='footer-brand'>Universidad de La Salle</span>"
@@ -392,9 +392,9 @@ def dimension_html(name):
 
 
 def progress_html(pos, total):
-    """«Correo n de N», porcentaje y barra de progreso dorada."""
+    """«PQR n de N», porcentaje y barra de progreso dorada."""
     pct = pos / total * 100 if total else 0
-    return (f"<div class='progress'><div class='progress-head'><div class='progress-text'>Correo "
+    return (f"<div class='progress'><div class='progress-head'><div class='progress-text'>PQR "
             f"<strong>{pos}</strong> de {total}</div><div class='progress-pct'>{pct:.0f} %</div></div>"
             f"<div class='progress-track'><div class='progress-bar' style='width:{pct:.1f}%'></div></div></div>")
 
@@ -430,7 +430,7 @@ footer { display:none !important; }
 
 /* ---- Ajuste al alto de la ventana ---------------------------------------
    Toda la cadena de contenedores de Gradio es una columna flex: se fija la raíz a 100vh y se deja que la
-   pantalla activa crezca; dentro de ella, solo el consentimiento y el cuerpo del correo se desplazan. */
+   pantalla activa crezca; dentro de ella, solo el consentimiento y el cuerpo de la PQR se desplazan. */
 html, body { height:100%; overflow:hidden; }
 gradio-app, .gradio-container { height:100vh !important; min-height:100vh !important; max-height:100vh !important;
                                 overflow:hidden !important; }
@@ -723,14 +723,14 @@ def escape(text):
 
 
 def render_email(state):
-    """HTML del correo actual (a ciegas) y texto de progreso; arranca el cronómetro."""
+    """HTML de la PQR actual (a ciegas) y texto de progreso; arranca el cronómetro."""
     email = LOT[state["pending"][state["index"]]]
     pos, total = state["index"] + 1, len(state["pending"])
-    state["start"] = time.perf_counter()   # el cronómetro arranca cuando el correo queda visible
+    state["start"] = time.perf_counter()   # el cronómetro arranca cuando la PQR queda visible
     subject = email["asunto"] or "(sin asunto)"
     body = email["cuerpo"] or "(sin cuerpo)"
     html = (f"<div class='email-card'>"
-            f"<div class='email-head'><span>Correo entrante</span>"
+            f"<div class='email-head'><span>PQR entrante</span>"
             f"<span class='tag'>Orden de llegada nº {email['orden_llegada']}</span></div>"
             f"<div class='email-meta'><div class='label'>Asunto</div>"
             f"<div class='subject'>{escape(subject)}</div></div>"
@@ -751,21 +751,21 @@ def summary_html(state, already_complete=False):
     """Resumen de la sesión: tarjetas de estadística y archivo del anotador (como en la app de escritorio)."""
     records = load_records(state["slug"])
     done, total = len(records), len(LOT)
-    stats = [("Correos clasificados", str(state["classified"])),
+    stats = [("PQRs clasificadas", str(state["classified"])),
              ("Progreso acumulado", f"{done} / {total}")]
     if state["classified"]:
         stats.append(("Tiempo total", f"{state['total_seconds']:.1f} s"))
-        stats.append(("Promedio por correo", f"{state['total_seconds'] / state['classified']:.2f} s"))
+        stats.append(("Promedio por PQR", f"{state['total_seconds'] / state['classified']:.2f} s"))
     if records:
         secs = sorted(float(r["segundos"]) for r in records)
         mid = len(secs) // 2
         median = secs[mid] if len(secs) % 2 else (secs[mid - 1] + secs[mid]) / 2
         counts = {k: sum(1 for r in records if r["etiqueta_humana"] == k) for k in ("Alta", "Media", "Baja")}
-        stats.append(("Mediana por correo", f"{median:.2f} s"))
+        stats.append(("Mediana por PQR", f"{median:.2f} s"))
         stats.append(("Distribución (Alta / Media / Baja)", f"{counts['Alta']} / {counts['Media']} / {counts['Baja']}"))
     cards = "".join(f"<div class='stat'><div class='value'>{v}</div><div class='label'>{k}</div></div>"
                     for k, v in stats)
-    head = (f"<div class='complete'>✓&nbsp; El anotador «{escape(state['display'])}» ya clasificó los {total} correos. ¡Gracias por su participación!</div>"
+    head = (f"<div class='complete'>✓&nbsp; El anotador «{escape(state['display'])}» ya clasificó las {total} PQRs. ¡Gracias por su participación!</div>"
             if already_complete or done >= total else "")
     if questionnaire_done(state["slug"]):
         survey = (f"<div class='file-card'><div class='label'>Cuestionario de uso y apropiación</div>"
@@ -789,7 +789,7 @@ def show(screen, state, email="", progress="", summary=""):
     """Arma la tupla de salidas: estado, cabecera, visibilidad de las pantallas y contenidos."""
     survey_reset = [gr.update()] * N_SURVEY_INPUTS
     if screen == 1:
-        header = header_html("Triaje manual de correos",
+        header = header_html("Triaje manual de PQRs",
                              "Clasificación humana por nivel de urgencia · comparativa de tiempos", 1)
         continue_lbl = gr.update()
     elif screen == 2:
@@ -834,7 +834,7 @@ def preview_name(raw):
 
 
 def start_session(name, consent):
-    """Valida identificador y consentimiento, crea la sesión y muestra el primer correo."""
+    """Valida identificador y consentimiento, crea la sesión y muestra la primera PQR."""
     display = format_display_name(name or "")
     slug = slugify(display)
     if not slug:
@@ -913,9 +913,9 @@ def restart():
 # --- Interfaz -----------------------------------------------------------------
 THEME = gr.themes.Soft(primary_hue="blue", radius_size=gr.themes.sizes.radius_none)
 
-with gr.Blocks(title="Triaje manual de correos", css=CSS, js=SHORTCUTS_JS, head=HEAD, theme=THEME) as demo:
+with gr.Blocks(title="Triaje manual de PQRs", css=CSS, js=SHORTCUTS_JS, head=HEAD, theme=THEME) as demo:
     state = gr.State(None)
-    header = gr.HTML(header_html("Triaje manual de correos",
+    header = gr.HTML(header_html("Triaje manual de PQRs",
                                  "Clasificación humana por nivel de urgencia · comparativa de tiempos", 1),
                      elem_id="hdr")
 
@@ -947,7 +947,7 @@ with gr.Blocks(title="Triaje manual de correos", css=CSS, js=SHORTCUTS_JS, head=
             media_btn = gr.Button("Media", elem_id="btn-media")
             baja_btn = gr.Button("Baja", elem_id="btn-baja")
         with gr.Row(elem_classes=["actions-row"]):
-            skip_btn = gr.Button("Saltar este correo  (S)", elem_id="btn-skip")
+            skip_btn = gr.Button("Saltar esta PQR  (S)", elem_id="btn-skip")
             quit_btn = gr.Button("Guardar y salir  (Q)", elem_id="btn-quit")
 
     # Pantalla 3 · cuestionario de uso y apropiación (se desplaza por dentro)

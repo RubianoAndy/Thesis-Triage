@@ -17,13 +17,18 @@ Diferencias con la versión de escritorio:
     aceptación queda registrada en `consent/<anotador>.json`.
   - Reanudable desde cualquier dispositivo: al iniciar sesión se recupera el
     archivo del anotador si ya existe en el repositorio.
+  - Al terminar el lote, el anotador responde el cuestionario de uso y
+    apropiación de la interfaz (SUS, nueve ítems adaptados de TAM y dos
+    preguntas abiertas), que queda en `questionnaire/<anotador>.json`.
 
 Variables de entorno del servicio (Render):
   HF_TOKEN      secreto · token de Hugging Face con permiso de escritura.
   DATASET_REPO  variable · p. ej. "RubianoAndy/thesis-simulation".
   PORT          la asigna Render; en local se usa 7860.
 
-Salida: manual/<anotador>.csv  (columnas: id, orden_llegada, etiqueta_humana, segundos)
+Salidas: manual/<anotador>.csv         (columnas: id, orden_llegada, etiqueta_humana, segundos)
+         consent/<anotador>.json       (constancia de aceptación del consentimiento)
+         questionnaire/<anotador>.json (respuestas del cuestionario y puntajes)
 =============================================================================
 """
 import base64
@@ -45,11 +50,12 @@ HF_TOKEN     = os.environ.get("HF_TOKEN")
 DATASET_REPO = os.environ.get("DATASET_REPO", "RubianoAndy/thesis-simulation")
 LOT_FILE     = os.environ.get("LOT_FILE")   # solo para pruebas locales: ruta a un simulation.csv (sin sincronizar)
 
-DATA_DIR    = Path("data")            # carpeta local sincronizada con el dataset
-MANUAL_DIR  = DATA_DIR / "manual"
-CONSENT_DIR = DATA_DIR / "consent"
-MANUAL_DIR.mkdir(parents=True, exist_ok=True)
-CONSENT_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR          = Path("data")            # carpeta local sincronizada con el dataset
+MANUAL_DIR        = DATA_DIR / "manual"
+CONSENT_DIR       = DATA_DIR / "consent"
+QUESTIONNAIRE_DIR = DATA_DIR / "questionnaire"
+for _d in (MANUAL_DIR, CONSENT_DIR, QUESTIONNAIRE_DIR):
+    _d.mkdir(parents=True, exist_ok=True)
 
 KEYS = {"a": "Alta", "m": "Media", "b": "Baja"}
 OUTPUT_FIELDS = ["id", "orden_llegada", "etiqueta_humana", "segundos"]
@@ -57,8 +63,49 @@ OUTPUT_FIELDS = ["id", "orden_llegada", "etiqueta_humana", "segundos"]
 PROGRAM = "Maestría en Inteligencia Artificial"
 FACULTY = "Facultad de Ingeniería · Universidad de La Salle"
 AUTHOR  = "Andrés Giovanny Rubiano Muñoz"
-TITLE   = ("Sistema de clasificación automática de correos electrónicos por nivel de "
-           "urgencia en el sector de la energía usando aprendizaje profundo")
+TITLE   = ("Construcción de un dataset sintético de PQRs del sector energético y triage "
+           "automático por nivel de urgencia con aprendizaje profundo")
+
+# --- Instrumento de uso y apropiación de la interfaz (sección 6.6.4 de la tesis) ---
+# Escala de respuesta común a las partes A y B: Likert de 5 puntos.
+LIKERT = ["1", "2", "3", "4", "5"]
+LIKERT_LEGEND = [("1", "Totalmente en desacuerdo"), ("2", "En desacuerdo"), ("3", "Ni de acuerdo ni en desacuerdo"),
+                 ("4", "De acuerdo"), ("5", "Totalmente de acuerdo")]
+
+# Parte A · Escala de Usabilidad del Sistema (SUS): impares en sentido positivo, pares en sentido negativo.
+SUS_ITEMS = [
+    "Creo que me gustaría utilizar esta plataforma con frecuencia.",
+    "Encontré la plataforma innecesariamente compleja.",
+    "Pensé que la plataforma era fácil de usar.",
+    "Creo que necesitaría el apoyo de una persona con conocimientos técnicos para poder utilizar esta plataforma.",
+    "Encontré que las diversas funciones de la plataforma estaban bien integradas.",
+    "Pensé que había demasiada inconsistencia en la plataforma.",
+    "Imagino que la mayoría de las personas aprenderían a utilizar esta plataforma muy rápidamente.",
+    "Encontré la plataforma muy incómoda de utilizar.",
+    "Me sentí muy seguro(a) utilizando la plataforma.",
+    "Necesité aprender muchas cosas antes de poder empezar a utilizar esta plataforma.",
+]
+
+# Parte B · Cuestionario de apropiación (adaptado de TAM): (código, dimensión, afirmación).
+TAM_DIMENSIONS = {"UP": "Utilidad percibida", "FU": "Facilidad de uso percibida", "IU": "Intención de uso"}
+TAM_ITEMS = [
+    ("UP1", "Usar esta herramienta me permitiría identificar más rápido las PQRs críticas."),
+    ("UP2", "Contar con una cola de PQRs priorizada por nivel de urgencia mejoraría mi desempeño al atender las solicitudes."),
+    ("UP3", "Considero que esta herramienta es útil para el triage de PQRs del sector energético."),
+    ("FU1", "Aprender a usar la plataforma me resultó fácil."),
+    ("FU2", "La información que presenta la plataforma es clara y fácil de entender."),
+    ("FU3", "Me resultó sencillo clasificar las PQRs con la plataforma."),
+    ("IU1", "Usaría esta herramienta en mi trabajo si estuviera disponible."),
+    ("IU2", "Recomendaría esta herramienta a otras personas que gestionan PQRs."),
+    ("IU3", "Estaría dispuesto(a) a apoyarme en una priorización automática de las PQRs, siempre que una persona "
+            "supervise los casos críticos."),
+]
+
+# Parte C · Preguntas abiertas: (clave en el JSON, pregunta).
+OPEN_QUESTIONS = [
+    ("mejoras", "¿Qué aspectos de la plataforma mejoraría?"),
+    ("desconfianza", "¿En qué situaciones no confiaría en la priorización de PQRs propuesta por el modelo?"),
+]
 
 
 # --- Utilidades del identificador (idénticas a la versión de escritorio) -----
@@ -160,6 +207,56 @@ def record_consent(display, slug):
         }, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+# --- Cuestionario de uso y apropiación ----------------------------------------
+def fetch_existing_questionnaire(slug):
+    """Recupera del repositorio el cuestionario del anotador si ya lo respondió (p. ej. tras un reinicio)."""
+    local = QUESTIONNAIRE_DIR / f"{slug}.json"
+    if local.exists() or LOT_FILE:
+        return
+    try:
+        remote = hf_hub_download(DATASET_REPO, f"questionnaire/{slug}.json", repo_type="dataset",
+                                 token=HF_TOKEN, force_download=True)
+        shutil.copy(remote, local)
+    except Exception:
+        pass                 # todavía no lo ha respondido
+
+
+def questionnaire_done(slug):
+    """True si el anotador ya respondió el cuestionario."""
+    return (QUESTIONNAIRE_DIR / f"{slug}.json").exists()
+
+
+def sus_score(answers):
+    """Puntaje SUS (0–100): a las impares se les resta 1, las pares se restan de 5; suma × 2,5."""
+    contributions = [(a - 1) if n % 2 == 1 else (5 - a) for n, a in enumerate(answers, 1)]
+    return round(sum(contributions) * 2.5, 1)
+
+
+def record_questionnaire(state, sus_answers, tam_answers, open_answers):
+    """Guarda las respuestas y los puntajes en questionnaire/<anotador>.json (una vez por anotador)."""
+    path = QUESTIONNAIRE_DIR / f"{state['slug']}.json"
+    if path.exists():
+        return
+    sus = {str(n): a for n, a in enumerate(sus_answers, 1)}
+    tam = {code: a for (code, _), a in zip(TAM_ITEMS, tam_answers)}
+    dims = {}
+    for prefix, name in TAM_DIMENSIONS.items():
+        values = [a for code, a in tam.items() if code.startswith(prefix)]
+        dims[name] = round(sum(values) / len(values), 2)
+    with scheduler.lock:
+        path.write_text(json.dumps({
+            "anotador": state["display"],
+            "identificador": state["slug"],
+            "fecha_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "escala": "Likert de 5 puntos (1 = totalmente en desacuerdo, 5 = totalmente de acuerdo)",
+            "sus": sus,
+            "puntaje_sus": sus_score(sus_answers),
+            "apropiacion": tam,
+            "promedio_dimension": dims,
+            "abiertas": {key: text for (key, _), text in zip(OPEN_QUESTIONS, open_answers)},
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 # --- Textos ------------------------------------------------------------------
 CONSENT_MD = f"""
 ### Consentimiento informado para anotadores
@@ -167,30 +264,37 @@ CONSENT_MD = f"""
 **Proyecto de grado:** {TITLE}.
 **Investigador:** {AUTHOR}. **Directora:** Paola Andrea Zambrano García.
 
-**Propósito.** Esta prueba forma parte de una investigación que compara la clasificación automática de
-correos electrónicos, realizada por un modelo de inteligencia artificial, frente a la clasificación hecha
-por personas. Su tarea consiste en leer, uno a uno, los correos de un lote y asignar a cada uno un nivel
-de urgencia (Alta, Media o Baja). La plataforma presenta los correos en orden de llegada y mide el tiempo
-empleado en cada decisión.
+**Propósito.** El ejercicio forma parte de una investigación que compara la clasificación automática de
+PQRs, realizada por un modelo de inteligencia artificial, frente a la clasificación hecha por personas. Su
+tarea consiste en leer, una a una, las PQRs de un lote y asignar a cada una un nivel de urgencia (Alta,
+Media o Baja). La plataforma presenta las PQRs en orden de llegada y mide el tiempo empleado en cada
+decisión. Al finalizar, usted responde un cuestionario breve sobre su experiencia de uso y la utilidad que
+percibe de la plataforma, compuesto por una escala de usabilidad de diez afirmaciones, nueve afirmaciones
+valoradas en una escala de cinco puntos y dos preguntas abiertas.
 
-**Naturaleza de los correos.** Todos los correos son hipotéticos y fueron generados de forma sintética
-para esta investigación; no corresponden a comunicaciones reales de ninguna empresa ni contienen datos
+**Naturaleza de las PQRs.** Todas las PQRs son hipotéticas y fueron generadas de forma sintética para
+esta investigación; no corresponden a comunicaciones reales de ninguna empresa ni contienen datos
 personales de clientes, usuarios o terceros. La participación es individual y a ciegas: usted no conoce la
 predicción del modelo ni la etiqueta correcta, y no existen respuestas que lo afecten; el objetivo es
-evaluar el sistema, no al participante.
+evaluar el sistema, no al participante. El cuestionario se diligencia una vez finalizada la clasificación
+y antes de conocer el desempeño del modelo.
 
 **Datos que se registran.** El identificador que usted proporcione (para guardar y reanudar la sesión),
-el nivel de urgencia asignado a cada correo, el tiempo empleado en cada decisión y el tiempo total de la
-sesión. No se recolectan datos sensibles.
+el nivel de urgencia asignado a cada PQR, el tiempo empleado en cada decisión, el tiempo total de la
+sesión y las respuestas al cuestionario de usabilidad y apropiación, incluidos los comentarios en texto
+libre. No se recolectan datos sensibles; el identificador se seudonimiza antes de reportar cualquier
+resultado.
 
 **Uso de la información.** Exclusivamente académico, dentro de este proyecto de grado y las publicaciones
-que de él se deriven. Las decisiones se presentan siempre de forma agregada y bajo seudónimo, con acceso
-restringido al investigador y a la directora, y pueden eliminarse a solicitud del participante.
+que de él se deriven. Las decisiones y las respuestas se presentan siempre de forma agregada y bajo
+seudónimo, con acceso restringido al investigador y a la directora, y pueden eliminarse a solicitud del
+participante.
 
 **Voluntariedad.** La participación es libre y voluntaria; puede abstenerse de responder o retirarse en
-cualquier momento sin justificación ni consecuencia alguna, y puede pedir que sus decisiones se excluyan
-del análisis aun después de finalizar. No hay compensación económica ni riesgos más allá del tiempo
-dedicado. Este tratamiento se ajusta a la Ley 1581 de 2012 de Protección de Datos Personales de Colombia.
+cualquier momento sin justificación ni consecuencia alguna, y puede pedir que sus decisiones y respuestas
+se excluyan del análisis aun después de finalizar la clasificación y el cuestionario. No hay compensación
+económica ni riesgos más allá del tiempo dedicado. Este tratamiento se ajusta a la Ley 1581 de 2012 de
+Protección de Datos Personales de Colombia.
 """
 
 # --- Recursos visuales (misma identidad que la app de escritorio) ------------
@@ -206,7 +310,7 @@ def _logo_data_uri():
 LOGO_URI = _logo_data_uri()
 
 
-STEPS = ["Consentimiento", "Triaje", "Resumen"]
+STEPS = ["Consentimiento", "Triaje", "Cuestionario", "Resumen"]
 
 
 def steps_html(current):
@@ -261,6 +365,30 @@ FOOTER_HTML = ("<div class='footer'><span class='footer-brand'>Universidad de La
                "<span class='footer-sep'></span>Bogotá D. C., Colombia"
                "<span class='footer-sep'></span>Andrés Giovanny Rubiano Muñoz"
                "<span class='footer-sep'></span>2026 © Todos los derechos reservados</div>")
+
+
+SURVEY_INTRO_HTML = """
+<div class='section-label'>Cuestionario de uso y apropiación de la interfaz
+  <small>Su opinión sobre la plataforma con la que acaba de clasificar las PQRs.</small></div>
+<div class='survey-intro'>
+  Indique, para cada afirmación, su grado de acuerdo en una escala de 1 a 5. No hay respuestas correctas ni
+  incorrectas: se evalúa la plataforma, no al participante. Las respuestas se guardan bajo el mismo
+  identificador de sus decisiones y se amparan en el consentimiento informado que aceptó al inicio.
+</div>
+<div class='scale-legend'>""" + "".join(
+    f"<div class='scale-item'><span class='scale-n'>{n}</span><span class='scale-l'>{label}</span></div>"
+    for n, label in LIKERT_LEGEND) + "</div>"
+
+
+def part_html(letter, title, subtitle):
+    """Encabezado de cada parte del cuestionario."""
+    return (f"<div class='part'><span class='part-n'>Parte {letter}</span>"
+            f"<span class='part-t'>{title}</span><span class='part-s'>{subtitle}</span></div>")
+
+
+def dimension_html(name):
+    """Rótulo de dimensión dentro de la parte B."""
+    return f"<div class='dimension'>{name}</div>"
 
 
 def progress_html(pos, total):
@@ -423,6 +551,60 @@ kbd { display:inline-flex; align-items:center; justify-content:center; min-width
 .email-card .body { white-space:pre-wrap; font-size:15.5px; line-height:1.7; padding:18px 24px 22px;
                     flex:1 1 auto; min-height:0; overflow-y:auto; }
 
+/* ---- Cuestionario -------------------------------------------------------- */
+/* La pantalla ocupa el alto disponible y se desplaza por dentro, como el consentimiento */
+.survey { max-width:1000px; margin:0 auto; padding:24px 40px 8px; width:100%; box-sizing:border-box;
+          flex:1 1 0px !important; min-height:0 !important; overflow-y:auto !important; }
+/* Los hijos no se encogen ni se desplazan por separado: todo el contenido crece y se desplaza la columna */
+.survey > * , .survey .form, .survey .block { flex:none !important; overflow:visible !important; max-height:none !important; }
+.survey .form { border:none !important; background:transparent !important; }
+.survey-intro { font-size:13.5px; line-height:1.6; color:var(--ink); margin:0 0 14px; }
+.scale-legend { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px 12px; background:var(--card);
+                border:1px solid var(--border); border-left:4px solid var(--gold); padding:10px 16px; margin:0 0 6px; }
+.scale-item { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink); }
+.scale-n { width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; font-weight:700;
+           font-size:12px; color:var(--navy); background:var(--gold-soft); border:1px solid var(--gold); }
+.part { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin:22px 0 4px; padding-bottom:8px;
+        border-bottom:2px solid var(--navy); }
+.part-n { font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); }
+.part-t { font-family:var(--serif); font-size:18px; font-weight:700; color:var(--navy); }
+.part-s { font-size:12.5px; color:var(--muted); flex-basis:100%; }
+.dimension { font-size:11.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
+             margin:14px 0 0; padding:0 0 0 12px; border-left:4px solid var(--gold); }
+/* Cada afirmación es una fila: enunciado a la izquierda, las cinco opciones a la derecha */
+.block.likert { display:flex !important; flex-direction:row !important; align-items:center !important;
+                justify-content:space-between !important; gap:20px !important; padding:10px 0 !important;
+                border-bottom:1px solid var(--border) !important; }
+.likert > span[data-testid="block-info"] { flex:1 1 auto; font-size:14px !important; color:var(--ink) !important;
+                font-weight:500 !important; line-height:1.45 !important; margin:0 !important; padding:0 !important;
+                display:block !important; background:transparent !important; }
+.likert .wrap { display:flex !important; flex:none !important; gap:6px !important; flex-wrap:nowrap !important; }
+.likert .wrap label { display:inline-flex !important; align-items:center; justify-content:center; width:42px; height:38px;
+                      margin:0 !important; padding:0 !important; background:var(--card) !important; color:var(--navy) !important;
+                      border:1.5px solid var(--border) !important; font-weight:700 !important; font-size:13.5px !important;
+                      cursor:pointer; box-shadow:none !important; }
+.likert .wrap label:hover { border-color:var(--navy) !important; }
+.likert .wrap label.selected { background:var(--navy) !important; border-color:var(--navy) !important; color:#FFFFFF !important; }
+.likert .wrap label input[type=radio] { display:none !important; }
+.likert .wrap label span { margin:0 !important; color:inherit !important; }
+/* Preguntas abiertas */
+.open-q label > span { font-size:14px !important; color:var(--ink) !important; font-weight:500 !important; margin-bottom:6px !important;
+                       background:transparent !important; padding:0 !important; }
+.open-q textarea { font-size:14px !important; line-height:1.5 !important; border:1.5px solid var(--border) !important;
+                   background:var(--card) !important; color:var(--ink) !important; padding:10px 12px !important; }
+.open-q textarea:focus { border-color:var(--navy) !important; box-shadow:0 0 0 3px rgba(0,46,91,.12) !important; }
+#btn-submit { background:var(--gold) !important; color:var(--navy-deep) !important; font-weight:700; font-size:15px;
+              border:none !important; min-height:48px; max-width:320px; box-shadow:0 2px 0 #C98A00; }
+#btn-submit:hover { filter:brightness(1.05); }
+#btn-later { background:var(--card) !important; color:var(--muted) !important; font-weight:600;
+             border:1.5px solid var(--border) !important; max-width:260px; min-height:44px; }
+#btn-later:hover { border-color:var(--navy) !important; color:var(--navy) !important; }
+.survey-actions { justify-content:space-between; margin:20px 0 8px !important; }
+@media (max-width: 760px) {
+  .block.likert { flex-direction:column !important; align-items:flex-start !important; gap:8px !important; }
+  .survey { padding:16px 20px 8px; }
+}
+
 /* ---- Resumen ------------------------------------------------------------- */
 .complete { display:flex; gap:12px; align-items:center; background:var(--baja-soft); border-left:4px solid var(--baja);
             color:var(--baja); font-weight:600; font-size:14px; padding:12px 16px; margin:0 0 18px; }
@@ -528,6 +710,7 @@ SHORTCUTS_JS = """
 def new_session(display, slug):
     """Estado de una sesión de triaje: pendientes en orden FIFO y contadores."""
     fetch_existing(slug)
+    fetch_existing_questionnaire(slug)
     done = load_done(slug)
     pending = [i for i, e in enumerate(LOT) if e["id"] not in done]
     return {"display": display, "slug": slug, "pending": pending, "index": 0,
@@ -584,14 +767,27 @@ def summary_html(state, already_complete=False):
                     for k, v in stats)
     head = (f"<div class='complete'>✓&nbsp; El anotador «{escape(state['display'])}» ya clasificó los {total} correos. ¡Gracias por su participación!</div>"
             if already_complete or done >= total else "")
+    if questionnaire_done(state["slug"]):
+        survey = (f"<div class='file-card'><div class='label'>Cuestionario de uso y apropiación</div>"
+                  f"<div class='path'>Respondido &nbsp;·&nbsp; <code>questionnaire/{state['slug']}.json</code>. ¡Gracias por su opinión!</div></div>")
+    elif done >= total:
+        survey = ("<div class='file-card'><div class='label'>Cuestionario de uso y apropiación</div>"
+                  "<div class='path'>Pendiente &nbsp;·&nbsp; puede responderlo ahora con el botón <strong>Responder cuestionario</strong> "
+                  "o más tarde ingresando con el mismo identificador.</div></div>")
+    else:
+        survey = ""
     return (f"{head}<div class='stats'>{cards}</div>"
             f"<div class='file-card'><div class='label'>Archivo del anotador</div>"
             f"<div class='path'><code>manual/{state['slug']}.csv</code> &nbsp;·&nbsp; se sincroniza con el repositorio de datos "
-            f"en menos de un minuto; sus decisiones quedan guardadas aunque cierre esta ventana.</div></div>")
+            f"en menos de un minuto; sus decisiones quedan guardadas aunque cierre esta ventana.</div></div>{survey}")
+
+
+N_SURVEY_INPUTS = len(SUS_ITEMS) + len(TAM_ITEMS) + len(OPEN_QUESTIONS)
 
 
 def show(screen, state, email="", progress="", summary=""):
     """Arma la tupla de salidas: estado, cabecera, visibilidad de las pantallas y contenidos."""
+    survey_reset = [gr.update()] * N_SURVEY_INPUTS
     if screen == 1:
         header = header_html("Triaje manual de correos",
                              "Clasificación humana por nivel de urgencia · comparativa de tiempos", 1)
@@ -600,13 +796,33 @@ def show(screen, state, email="", progress="", summary=""):
         header = header_html("Triaje en curso",
                              f"Anotador: {state['display']}  ·  clasificación a ciegas en orden de llegada", 2)
         continue_lbl = gr.update()
+    elif screen == 3:
+        header = header_html("Cuestionario de uso y apropiación",
+                             f"Anotador: {state['display']}  ·  su valoración de la plataforma", 3)
+        continue_lbl = gr.update()
+        # Formulario en blanco para cada anotador
+        survey_reset = ([gr.update(value=None)] * (len(SUS_ITEMS) + len(TAM_ITEMS))
+                        + [gr.update(value="")] * len(OPEN_QUESTIONS))
     else:
-        header = header_html("Sesión finalizada", f"Anotador: {state['display']}", 3)
+        header = header_html("Sesión finalizada", f"Anotador: {state['display']}", 4)
         remaining = len(LOT) - len(load_done(state["slug"]))
-        continue_lbl = gr.update(visible=remaining > 0, value=f"↻  Continuar ({remaining} pendientes)")
+        if remaining > 0:
+            continue_lbl = gr.update(visible=True, value=f"↻  Continuar ({remaining} pendientes)")
+        elif not questionnaire_done(state["slug"]):
+            continue_lbl = gr.update(visible=True, value="Responder cuestionario  →")
+        else:
+            continue_lbl = gr.update(visible=False)
     return (state, header,
-            gr.update(visible=(screen == 1)), gr.update(visible=(screen == 2)), gr.update(visible=(screen == 3)),
-            email, progress, summary, continue_lbl)
+            gr.update(visible=(screen == 1)), gr.update(visible=(screen == 2)),
+            gr.update(visible=(screen == 3)), gr.update(visible=(screen == 4)),
+            email, progress, summary, continue_lbl, *survey_reset)
+
+
+def finish(state, already_complete=False):
+    """Cierre del lote: cuestionario si aún no lo respondió; si ya lo hizo, resumen."""
+    if not questionnaire_done(state["slug"]):
+        return show(3, state)
+    return show(4, state, summary=summary_html(state, already_complete=already_complete))
 
 
 def preview_name(raw):
@@ -628,7 +844,7 @@ def start_session(name, consent):
     record_consent(display, slug)
     state = new_session(display, slug)
     if not state["pending"]:
-        return show(3, state, summary=summary_html(state, already_complete=True))
+        return finish(state, already_complete=True)
     html, progress = render_email(state)
     return show(2, state, email=html, progress=progress)
 
@@ -639,7 +855,7 @@ def decide(state, choice):
         return show(1, state)
     seconds = time.perf_counter() - state["start"]
     if choice == "q":
-        return show(3, state, summary=summary_html(state))
+        return show(4, state, summary=summary_html(state))
     if choice != "s":
         email = LOT[state["pending"][state["index"]]]
         append_record(state["slug"], {
@@ -652,16 +868,39 @@ def decide(state, choice):
         state["total_seconds"] += seconds
     state["index"] += 1
     if state["index"] >= len(state["pending"]):
-        return show(3, state, summary=summary_html(state))
+        # Lote agotado en esta sesión: si todo quedó clasificado (sin saltos) sigue el cuestionario
+        if len(load_done(state["slug"])) >= len(LOT):
+            return finish(state)
+        return show(4, state, summary=summary_html(state))
     html, progress = render_email(state)
     return show(2, state, email=html, progress=progress)
 
 
+def submit_questionnaire(state, *answers):
+    """Valida que las 19 afirmaciones tengan respuesta, guarda el cuestionario y muestra el resumen."""
+    n_sus, n_tam = len(SUS_ITEMS), len(TAM_ITEMS)
+    sus_raw, tam_raw, open_raw = answers[:n_sus], answers[n_sus:n_sus + n_tam], answers[n_sus + n_tam:]
+    missing = [f"A{n}" for n, a in enumerate(sus_raw, 1) if not a]
+    missing += [code for (code, _), a in zip(TAM_ITEMS, tam_raw) if not a]
+    if missing:
+        # Aviso sin lanzar error: así Gradio no marca cada componente de la pantalla como fallido
+        gr.Warning(f"Faltan {len(missing)} afirmaciones por responder: {', '.join(missing)}.")
+        return (state, *[gr.update()] * (9 + N_SURVEY_INPUTS))
+    record_questionnaire(state, [int(a) for a in sus_raw], [int(a) for a in tam_raw],
+                         [(t or "").strip() for t in open_raw])
+    return show(4, state, summary=summary_html(state))
+
+
+def answer_later(state):
+    """Pospone el cuestionario: pasa al resumen y queda pendiente para la próxima sesión."""
+    return show(4, state, summary=summary_html(state))
+
+
 def continue_session(state):
-    """Recarga los pendientes y reanuda el triaje."""
+    """Recarga los pendientes y reanuda el triaje; si no quedan, sigue con el cuestionario o el resumen."""
     fresh = new_session(state["display"], state["slug"])
     if not fresh["pending"]:
-        return show(3, fresh, summary=summary_html(fresh, already_complete=True))
+        return finish(fresh, already_complete=True)
     html, progress = render_email(fresh)
     return show(2, fresh, email=html, progress=progress)
 
@@ -711,7 +950,29 @@ with gr.Blocks(title="Triaje manual de correos", css=CSS, js=SHORTCUTS_JS, head=
             skip_btn = gr.Button("Saltar este correo  (S)", elem_id="btn-skip")
             quit_btn = gr.Button("Guardar y salir  (Q)", elem_id="btn-quit")
 
-    # Pantalla 3 · resumen (columna central compacta)
+    # Pantalla 3 · cuestionario de uso y apropiación (se desplaza por dentro)
+    with gr.Column(visible=False, elem_classes=["survey"]) as survey:
+        gr.HTML(SURVEY_INTRO_HTML)
+        gr.HTML(part_html("A", "Escala de Usabilidad del Sistema (SUS)",
+                          "Diez afirmaciones sobre la usabilidad general de la plataforma."))
+        sus_inputs = [gr.Radio(choices=LIKERT, label=f"{n}. {text}", elem_classes=["likert"])
+                      for n, text in enumerate(SUS_ITEMS, 1)]
+        gr.HTML(part_html("B", "Cuestionario de apropiación",
+                          "Nueve afirmaciones sobre la utilidad, la facilidad de uso y la intención de uso en el triage de PQRs."))
+        tam_inputs = []
+        current_dim = None
+        for code, text in TAM_ITEMS:
+            if code[:2] != current_dim:
+                current_dim = code[:2]
+                gr.HTML(dimension_html(TAM_DIMENSIONS[current_dim]))
+            tam_inputs.append(gr.Radio(choices=LIKERT, label=f"{code}. {text}", elem_classes=["likert"]))
+        gr.HTML(part_html("C", "Preguntas abiertas", "Opcionales: escriba con sus palabras lo que considere."))
+        open_inputs = [gr.Textbox(label=question, lines=3, elem_classes=["open-q"]) for _, question in OPEN_QUESTIONS]
+        with gr.Row(elem_classes=["survey-actions"]):
+            later_btn = gr.Button("Responder más tarde", elem_id="btn-later")
+            submit_btn = gr.Button("Enviar cuestionario  →", elem_id="btn-submit")
+
+    # Pantalla 4 · resumen (columna central compacta)
     with gr.Column(visible=False, elem_classes=["narrow"]) as summary:
         summary_text = gr.HTML()
         with gr.Row(elem_classes=["actions-row"]):
@@ -720,16 +981,26 @@ with gr.Blocks(title="Triaje manual de correos", css=CSS, js=SHORTCUTS_JS, head=
 
     gr.HTML(FOOTER_HTML, elem_id="ftr")
 
-    outputs = [state, header, welcome, triage, summary, email_html, progress, summary_text, continue_btn]
+    survey_inputs = sus_inputs + tam_inputs + open_inputs
+    outputs = [state, header, welcome, triage, survey, summary, email_html, progress, summary_text, continue_btn,
+               *survey_inputs]
     name.change(preview_name, [name], [name_hint])
-    start_btn.click(start_session, [name, consent], outputs)
-    alta_btn.click(lambda s: decide(s, "a"), [state], outputs)
-    media_btn.click(lambda s: decide(s, "m"), [state], outputs)
-    baja_btn.click(lambda s: decide(s, "b"), [state], outputs)
-    skip_btn.click(lambda s: decide(s, "s"), [state], outputs)
-    quit_btn.click(lambda s: decide(s, "q"), [state], outputs)
-    continue_btn.click(continue_session, [state], outputs)
-    exit_btn.click(restart, None, outputs)
+    # Tras cada cambio de pantalla, el cuestionario vuelve a mostrarse desde el principio
+    scroll_top_js = "() => { const s = document.querySelector('.survey'); if (s) s.scrollTop = 0; }"
+    events = [
+        start_btn.click(start_session, [name, consent], outputs),
+        alta_btn.click(lambda s: decide(s, "a"), [state], outputs),
+        media_btn.click(lambda s: decide(s, "m"), [state], outputs),
+        baja_btn.click(lambda s: decide(s, "b"), [state], outputs),
+        skip_btn.click(lambda s: decide(s, "s"), [state], outputs),
+        quit_btn.click(lambda s: decide(s, "q"), [state], outputs),
+        submit_btn.click(submit_questionnaire, [state, *survey_inputs], outputs),
+        later_btn.click(answer_later, [state], outputs),
+        continue_btn.click(continue_session, [state], outputs),
+        exit_btn.click(restart, None, outputs),
+    ]
+    for event in events:
+        event.then(None, None, None, js=scroll_top_js)
 
 if __name__ == "__main__":
     # Render asigna el puerto en la variable de entorno PORT; en local se usa 7860.

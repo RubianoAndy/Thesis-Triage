@@ -63,8 +63,8 @@ OUTPUT_FIELDS = ["id", "orden_llegada", "etiqueta_humana", "segundos"]
 PROGRAM = "Maestría en Inteligencia Artificial"
 FACULTY = "Facultad de Ingeniería · Universidad de La Salle"
 AUTHOR  = "Andrés Giovanny Rubiano Muñoz"
-TITLE   = ("Construcción de un dataset sintético de PQRs del sector energético y triage "
-           "automático por nivel de urgencia con aprendizaje profundo")
+TITLE   = ("Triage automático de PQRs por nivel de urgencia en el sector energético "
+           "con aprendizaje profundo a partir de un dataset sintético")
 
 # --- Instrumento de uso y apropiación de la interfaz (sección 6.6.4 de la tesis) ---
 # Escala de respuesta común a las partes A y B: Likert de 5 puntos.

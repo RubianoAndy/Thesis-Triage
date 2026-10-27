@@ -2,7 +2,7 @@
     <img src="assets/images/Logo.png" width="250" alt="Logo Universidad de La Salle">
 </div>
 
-# Construcción de un Dataset Sintético de PQRs del Sector Energético y Triage Automático por Nivel de Urgencia con Aprendizaje Profundo — *Plataforma de Triaje*
+# Triage Automático de PQRs por Nivel de Urgencia en el Sector Energético con Aprendizaje Profundo a partir de un Dataset Sintético — *Plataforma de Triaje*
 
 > 🌐 **Aplicación en producción:** https://thesis-triage.onrender.com
 
